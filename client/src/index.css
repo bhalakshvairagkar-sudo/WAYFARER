@@ -1,0 +1,97 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-slate-50 text-slate-800 antialiased;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+  }
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Leaflet Map Customizations */
+.leaflet-container {
+  font-family: inherit;
+  border-radius: 0.75rem;
+  z-index: 10;
+}
+
+.custom-pulse-marker {
+  position: relative;
+}
+
+.custom-pulse-marker .pulse-ring {
+  position: absolute;
+  top: -12px;
+  left: -12px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(14, 140, 230, 0.35);
+  animation: radar-pulse 2s infinite ease-out;
+}
+
+.custom-pulse-marker .core-dot {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #026fc5;
+  border: 3px solid #ffffff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+@keyframes radar-pulse {
+  0% {
+    transform: scale(0.5);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+}
+
+/* Route transitions and score flashes */
+@keyframes flash-green {
+  0%, 100% { background-color: transparent; }
+  50% { background-color: rgba(16, 185, 129, 0.15); }
+}
+
+@keyframes flash-amber {
+  0%, 100% { background-color: transparent; }
+  50% { background-color: rgba(245, 158, 11, 0.15); }
+}
+
+.animate-flash-green {
+  animation: flash-green 1.2s ease-in-out;
+}
+
+.animate-flash-amber {
+  animation: flash-amber 1.2s ease-in-out;
+}
