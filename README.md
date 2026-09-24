@@ -1,191 +1,225 @@
-# WAYFARER AI — Adaptive Journey Intelligence
+# WAYFARER AI — Adaptive Journey Intelligence for Dynamic, Inclusive Travel
 
-> **HackCelestial 3.0 Prototype**  
-> **Theme:** Hospitality & Travel  
-> **Primary Focus:** Accessible & Inclusive Travel + Travel Safety & Convenience  
-> **Supporting Focus:** Smart Travel & Personalization  
+> **Adaptive Journey Orchestrator & Inclusive Route Intelligence**  
+> **Core Mission:** Real-world environmental resilience for accessible, safe, and personalized multi-modal travel.
 
 ---
 
 ## 🌟 Core USP
 
-> **“WAYFARER doesn't just plan your trip — it continuously decides whether your journey is still the right one, and tells you why.”**
-
----
-
-## 🎯 What Problem Does WAYFARER Solve?
-
-Travelers make plans before they travel, but the journey unfolds in a changing environment. Different travelers have different mobility, safety, and sensory needs, and the best plan often changes while the trip is underway. 
-
-WAYFARER AI is an **Adaptive Journey Orchestrator**:
-1. It starts with **Complete Journey Understanding** (extracting traveler mobility constraints, factor weights, and multi-day stops from natural language).
-2. It evaluates every segment using **Transparent Multi-Factor Scoring** ($w_{\text{Safety}} \cdot \text{Safety} + w_{\text{Access}} \cdot \text{Access} + w_{\text{Crowd}} \cdot \text{Crowd} + w_{\text{Convenience}} \cdot \text{Convenience}$).
-3. It maintains a **Live Journey State** during active travel.
-4. When real-world disruptions occur (e.g. elevator failure, crowd surge, route deviation), it **re-evaluates affected segments, checks downstream cascading impact, re-optimizes the itinerary, and explains why the change happened in natural language**.
+> **“A route is only optimal until something changes. WAYFARER doesn't just plan your trip — it continuously decides whether your journey is still the right one, and transparently tells you why.”**
 
 ---
 
 ## 🏗️ System Architecture
 
 ```
-                    USER NATURAL LANGUAGE INPUT
-             ("I'm traveling from Pune to Goa for 3 days...")
-                                │
-                                ▼
-                   AI JOURNEY UNDERSTANDING
-               (Gemini API + Deterministic Fallback)
-                                │
-                                ▼
-                     STRUCTURED JOURNEY JSON
-            (Trip + Traveler Constraints + Chronological Stops)
-                                │
-                                ▼
-                      JOURNEY REVIEW SCREEN
-                  (User Confirms / Edits Trip)
-                                │
-                                ▼
-                     JOURNEY SEGMENTATION
-                  (S1, S2, S3 Fort Aguada, S4, S5, S6, S7)
-                                │
-                                ▼
-                  CANDIDATE ROUTE GENERATION
-                (Route A: Fast, Route B: Accessible,
-                 Route C: Low-Crowd Plateau Bypass)
-                                │
-                                ▼
-                PERSONALIZED MULTI-FACTOR SCORING
-                     (Weights derived from profile)
-                                │
-                                ▼
-                     ACTIVE JOURNEY DASHBOARD
-   ┌─────────────────────────────────────────────────────────────┐
-   │ Interactive Map (Leaflet) + Live Route Transitions          │
-   │ Journey Score Gauge (90/100 EXCELLENT FIT)                  │
-   │ Transparent Route Comparison Matrix (A vs B vs C)           │
-   │ Chronological Timeline with Live ETA Updates                │
-   │ Traveler Profile Badges (♿ 🚫 🟡 🔴 🟢)                     │
-   └─────────────────────────────────────────────────────────────┘
-                                │
-                                ▼
-                     LIVE SIMULATED EVENT
-         [⚡ Elevator Fails] [👥 Crowd Spikes] [📍 Traveler Deviates]
-                                │
-                                ▼
-                     SEGMENT RE-EVALUATION
-            (Route B Access: 96 → 38, Score: 91 → 68)
-                                │
-                                ▼
-                     DOWNSTREAM CASCADE CHECK
-          (Checks ETA ripple effects & operating hour conflicts)
-                                │
-                                ▼
-                     JOURNEY RE-OPTIMIZATION
-                 (Route C recommended at Score: 88)
-                                │
-                                ▼
-                     EXPLAINABLE AI REASONING
-            ("Route C is now recommended because Route B
-              lost accessibility after an elevator failure")
+                       NATURAL LANGUAGE INPUT / PLACES SEARCH
+               ("Traveling with a power wheelchair, step-free access...")
+                                         │
+                                         ▼
+                           AI JOURNEY UNDERSTANDING
+                (Configurable Gemini API + Deterministic NLP Fallback)
+                                         │
+                                         ▼
+                            STRUCTURED TRAVELER PROFILE
+                { mobility: 'wheelchair', stairsAllowed: false, budget: 'medium', ... }
+                                         │
+                                         ▼
+                                ROUTE SERVICE ABSTRACTION
+                   ┌───────────────────────────────────────────┐
+                   │ Google Places API + Google Directions API │
+                   │  (Or High-Fidelity Verified Demo Engine)  │
+                   └───────────────────────────────────────────┘
+                                         │
+                                         ▼
+                               CANDIDATE ROUTE POOL
+                       (Route A: Direct, Route B: Accessible Deck,
+                        Route C: Low-Stress Scenic Bypass)
+                                         │
+                                         ▼
+                         5-FACTOR DETERMINISTIC SCORING
+                     w_Safety · S + w_Access · A + w_Crowd · C +
+                         w_Convenience · V + w_Cost · $
+                                         │
+                                         ▼
+                             DYNAMIC ITINERARY GRAPH (DAG)
+                         [Node 1] ──Edge S1──► [Node 2] ──Edge S2──► [Node 3]
+                            │                     │                     │
+                        (Opening Hours, Dwell Durations, Strict Deadlines)
+                                         │
+                                         ▼
+                            LIVE ADAPTIVE ORCHESTRATION
+    ┌────────────────────────────────────────────────────────────────────────┐
+    │ • Real Google Maps JS API (Polylines, Waypoints, Live Geolocation)     │
+    │ • Transparent Score Breakdown ($27.0 + 33.6 + 12.8 + 8.6 + 13.5 = 95$) │
+    │ • Dynamic Downstream Dependency Cascade & Dwell Time Compression       │
+    │ • Why-Not Rejection Explanations ("Why NOT Route A? Access < 80")      │
+    │ • Fleet Operator Center (Live status across all traveler itineraries)  │
+    └────────────────────────────────────────────────────────────────────────┘
+                                         │
+                                         ▼
+                            REAL ENVIRONMENTAL EVENT
+       [⚡ Elevator Fails] [⏱️ Transport Delay +50m] [❌ Activity Cancelled]
+       [👥 Crowd Surge]    [⚠️ Safety Hazard]         [📍 Traveler Deviates]
+                                         │
+                                         ▼
+                             STATE MUTATION & RE-RANKING
+                 (Route B Access: 96 → 38 | Re-ranks Route C to #1)
+                                         │
+                                         ▼
+                              DOWNSTREAM IMPACT CASCADE
+             (Shifts downstream arrival times; compresses dwell buffers;
+                 checks venue closing hours & transit deadlines)
+                                         │
+                                         ▼
+                              EXPLAINABLE AI RECOVERY
+                 ("Why did this change? Route C avoids the failed
+                   elevator while preserving inclusive access")
 ```
 
 ---
 
-## 📐 Mathematical Formulation: Personalized Scoring Engine
+## 📐 Mathematical Formulation: 5-Factor Deterministic Scoring
 
-For any candidate route $r$, the **Segment Journey Score** is calculated as:
+For any candidate route $r$, the **Composite Journey Score** is calculated as:
 
-$$\text{Segment Score}(r) = \text{round}\Big( w_{\text{Safety}} \cdot \text{Safety}(r) + w_{\text{Accessibility}} \cdot \text{Accessibility}(r) + w_{\text{Crowd}} \cdot \text{Crowd}(r) + w_{\text{Convenience}} \cdot \text{Convenience}(r) \Big)$$
+$$\text{Journey Score}(r) = \text{round}\Big( w_{\text{Safety}} \cdot \text{Safety}(r) + w_{\text{Access}} \cdot \text{Access}(r) + w_{\text{Crowd}} \cdot \text{Crowd}(r) + w_{\text{Conv}} \cdot \text{Conv}(r) + w_{\text{Cost}} \cdot \text{Cost}(r) \Big)$$
 
-Where weights are derived from the traveler profile and strictly normalize to $1.0$:
+Where weights strictly normalize to $1.00$ based on the traveler's physical mobility, budget sensitivity, and safety preferences:
 
-$$\sum_{i} w_i = 1.00$$
-
-### Canonical Wheelchair Solo Traveler Archetype (Aditi):
-- $w_{\text{Accessibility}} = 0.40$ (Elevated for wheelchair mobility & step-free requirements)
-- $w_{\text{Safety}} = 0.30$ (Elevated for solo travel & high safety priority)
-- $w_{\text{Crowd}} = 0.20$ (Low crowd tolerance preference)
-- $w_{\text{Convenience}} = 0.10$ (Traveler accepts longer routes for higher accessibility)
-
-### Segment S3 (Panjim $\to$ Fort Aguada) Baseline Calculation:
-- **Route A (Fastest)**: Safety 82, Access 45, Crowd 61, Conv 92 $\to \mathbf{64}$
-- **Route B (Most Accessible - Elevator Deck)**: Safety 90, Access 96, Crowd 85, Conv 86 $\to \mathbf{91}$ ★ (Recommended)
-- **Route C (Lower Crowd - Plateau Ramp Bypass)**: Safety 88, Access 91, Crowd 85, Conv 82 $\to \mathbf{88}$
-
-### Segment S3 Post-Disruption (Elevator Failure on Route B):
-- **Route B Accessibility**: Degraded $96 \to 38$
-- **Route B Score**: $(0.30 \times 90) + (0.40 \times 38) + (0.20 \times 85) + (0.10 \times 86) = 27.0 + 15.2 + 17.0 + 8.6 = \mathbf{68}$
-- **Route C Score**: $\mathbf{88}$ $\to$ **★ NEW RECOMMENDATION**
+| Traveler Archetype | Safety ($w_S$) | Access ($w_A$) | Crowd ($w_C$) | Conv ($w_V$) | Cost ($w_\$$) |
+|:-------------------|:--------------:|:--------------:|:-------------:|:------------:|:-------------:|
+| **Wheelchair User**| 0.25 | **0.35** | 0.15 | 0.10 | 0.15 |
+| **Walking Cane / Senior** | 0.30 | 0.30 | 0.15 | 0.10 | 0.15 |
+| **Budget Sensitive** | 0.20 | 0.25 | 0.10 | 0.15 | **0.30** |
+| **Standard Unassisted** | 0.25 | 0.15 | 0.20 | 0.25 | 0.15 |
 
 ---
 
-## ⚡ Quick Start & Run Commands
+## 🌐 Multi-Page Application Architecture
 
-### Prerequisites
-- Node.js (v18+ recommended, tested on Node v24.15)
-- npm (v9+)
+The frontend is built with React 18, React Router v6, Tailwind CSS, and Lucide icons, connected to a centralized `JourneyContext`:
 
-### Installation
+| Route | Page | Purpose & Capabilities |
+|:------|:-----|:-----------------------|
+| `/` | **Landing Page** | Overview, core USP, value proposition, quick-jump navigation |
+| `/profile` | **Traveler Profile** | Natural-language prompt parsing, structured accessibility constraints |
+| `/planner` | **Journey Planner** | Google Places search, waypoint sequencing, Google Map preview, [Generate Journey] |
+| `/journey/:id` | **Live Journey** | Interactive Google Map, 5-factor gauge, math breakdown, [View Details], [Report Change], [Open Events], [View History] |
+| `/events` | **Events Center** | 6 simulation buttons posting to backend event engine with DAG cascade |
+| `/recovery/:id` | **Recovery / Adaptation** | Before vs After score arithmetic, Why Did WAYFARER Change?, [Accept Route] |
+| `/operator` | **Operator Dashboard** | Fleet monitoring (Stable, Monitoring, At Risk) bound to shared backend state |
+| `/history` | **Decision History** | Data-driven chronological audit trail of all mutations and adaptations |
+
+---
+
+## 🗺️ Google Maps & Google Places Integration
+
+WAYFARER supports live Google Cloud APIs with a graceful, offline-resilient demo fallback:
+
+### Required Google Cloud APIs:
+1. **Maps JavaScript API** — Interactive map rendering, vector tiles, custom styled markers, polylines.
+2. **Places API (New or Legacy)** — Autocomplete place search, address resolution, place details.
+3. **Directions API** — Walking and transit alternative route calculation.
+
+### Environment Setup:
+Copy `.env.example` to `.env` or set the environment variables:
 ```bash
-# Clone or navigate to the project directory
+# Server Port
+PORT=5000
+
+# Google Gemini API (Configurable model, defaults to gemini-2.0-flash)
+GEMINI_API_KEY=your_gemini_api_key_here
+GEMINI_MODEL=gemini-2.0-flash
+
+# Google Maps API Key
+VITE_GOOGLE_MAPS_API_KEY=your_google_maps_api_key_here
+```
+
+### Live vs. Demo Mode:
+- **`LIVE GOOGLE ROUTING`**: Rendered automatically when `VITE_GOOGLE_MAPS_API_KEY` is present.
+- **`DEMO / OFFLINE MAP MODE`**: Automatically activated if key is missing or offline. Renders interactive map canvas with zero crashes, preserving the complete 5-factor scoring and DAG cascade engine.
+
+---
+
+## 🚀 Getting Started
+
+### 1. Installation
+```bash
+# Clone the repository
+git clone https://github.com/bhalakshvairagkar-sudo/WAYFARER.git
 cd wayfarer
 
-# Install all dependencies (root, server, and client)
+# Install all dependencies (root, client, server)
 npm run install:all
 ```
 
-### Environment Configuration (Optional)
+### 2. Run Tests
 ```bash
-# Copy .env.example to .env
-cp .env.example .env
-
-# Optional: Add your Google Gemini API Key
-# If left empty, WAYFARER operates seamlessly with 100% offline fallback resilience!
-GEMINI_API_KEY=your_gemini_api_key_here
-```
-
-### Run the Application
-```bash
-# Option 1: Unified production server (serves API and UI on http://localhost:5000)
-npm start
-
-# Option 2: Full development mode with hot reload
-npm run dev
-# Backend on http://localhost:5000 | Frontend Vite on http://localhost:3000
-```
-
-### Run Automated Unit & Integration Tests
-```bash
-# Run all unit tests (10 passing tests across 4 suites)
+# Runs 11 unit & engine tests
 npm test
 
-# Run end-to-end integration test
+# Runs end-to-end integration tests against live Express server
 node tests/integration.js
 ```
 
----
+### 3. Build & Run
+```bash
+# Build production client bundle
+npm --prefix client run build
 
-## 🎭 3-Minute Hackathon Demo Presentation Guide
+# Start production server on port 5000
+npm start
 
-| Time | Stage | Action & Speaker Cue |
-| :--- | :--- | :--- |
-| **0:00–0:30** | **Trip Understanding** | Select *"♿ Pune to Goa (Wheelchair Solo)"* preset $\to$ Click **UNDERSTAND JOURNEY**.<br/>🗣️ *"WAYFARER doesn't start with a single route. It starts by understanding the complete journey and extracting traveler-specific priorities."* |
-| **0:30–0:55** | **Optimized Journey** | Review Day 1, 2, 3 breakdown $\to$ Show 90/100 Journey Score $\to$ Click **CONFIRM JOURNEY**.<br/>🗣️ *"It evaluates every segment based on what matters to this traveler using deterministic, transparent multi-factor scoring."* |
-| **0:55–1:30** | **Hero Event: Elevator Failure** | Select Segment S3 $\to$ Click **[Elevator Fails]**.<br/>• Route B Access drops $96 \to 38$<br/>• Route B Score drops $91 \to 68$<br/>• Route C promoted to 88 (★ RECOMMENDED NOW)<br/>• Leaflet map switches highlight to Route C<br/>• Downstream engine confirms no conflict with Beach buffer.<br/>🗣️ *"WAYFARER re-evaluates the segment, checks downstream cascade effects, and explains why Route C is now recommended."* |
-| **1:30–2:00** | **Crowd Surge & Timing Shift** | Click **[Crowd Spikes]**.<br/>• Market crowd suitability drops<br/>• Downstream engine shifts Market schedule from 17:30 to 18:15 (+45m shift).<br/>🗣️ *"It doesn't just reroute. It checks downstream feasibility and shifts timing to preserve an accessible experience."* |
-| **2:00–2:30** | **Safety Deviation Verification** | Click **[Traveler Deviates]**.<br/>• Shows "Are You Okay?" prompt with "I'm Fine" verification.<br/>🗣️ *"WAYFARER verifies before escalating, protecting traveler autonomy."* |
-| **2:30–3:00** | **Closing Punchline** | Click **[Reset Journey]**.<br/>🗣️ *"Traditional travel tools plan a trip. WAYFARER continuously manages the journey as reality changes."* |
+# Or run full-stack dev mode (concurrently runs client on :5173 and server on :5000)
+npm run dev
+```
 
----
-
-## 🛡️ Technical Honesty & Offline Resilience
-
-- **🟢 AI Live vs 🟡 Demo Fallback**: Honest status indicator in the top navbar. When the Gemini API is connected, live models parse prompts and generate natural language reasoning. If offline or without an API key, deterministic fallback parsers and template reasoning engage automatically with transparent labeling.
-- **Simulated External Events**: Event triggers are clearly labeled `SIMULATED EXTERNAL EVENT` to demonstrate the continuous orchestration architecture without falsely claiming live municipal sensor feeds or emergency dispatch.
+Open **`http://localhost:5000`** in your browser.
 
 ---
 
-## 🏆 HackCelestial 3.0 Alignment Summary
+## 🎬 Recommended Hackathon Demo Walkthrough
 
-- **Accessible & Inclusive Travel**: Native modeling of wheelchair ramps, step-free pathways, tactile paving, and elevator dependencies.
-- **Travel Safety & Convenience**: Transparent safety factor weighting, route deviation verification, and emergency contact telemetry simulation.
-- **Smart Travel & Personalization**: End-to-end journey understanding, dynamic multi-factor ranking, and explainable AI adaptations.
+1. **Start at `/` (Landing Page)**:
+   - Notice the hero: *"A route is only optimal until something changes."*
+   - Click **[Plan My Journey]**.
+
+2. **Personalize at `/profile` (Traveler Profile)**:
+   - Notice natural-language input: *"I use a power wheelchair, cannot use stairs, prefer step-free ramps..."*
+   - Click **[Understand My Needs]** (Gemini extracts profile and 5-factor weights).
+   - Click **[Continue to Journey Planner]**.
+
+3. **Plan at `/planner` (Journey Planner)**:
+   - Use Google Places search for Origin and Destination.
+   - Add a waypoint/stop.
+   - Inspect live route candidates on the Google Map.
+   - Click **[Generate Adaptive Journey]**.
+
+4. **Active Travel at `/journey/active` (Live Journey)**:
+   - Inspect the interactive map with selected Route B and alternatives.
+   - View the 5-factor Score Gauge (e.g. 91/100) and click to view mathematical factor arithmetic.
+   - Click **[Open Events]** or **[Report Change]**.
+
+5. **Disrupt at `/events` (Events Center)**:
+   - Click **[Simulate Elevator Failure]**.
+   - Notice the event is sent to Express backend: Route B drops access (96 → 38), re-ranks to Route C (88/100), and redirects to Recovery!
+
+6. **Adapt at `/recovery/active` (Recovery & Adaptation)**:
+   - Inspect Before (Route B: 91) vs After (Route C: 88).
+   - Read the structured **Why Did WAYFARER Change?** rationale.
+   - Click **[Accept Route C]** (commits update to live state).
+
+7. **Monitor at `/operator` (Operator Center)**:
+   - View Tour #1042 reflecting the same backend journey state.
+   - Filter by Stable, Monitoring, and At Risk tours.
+
+8. **Audit at `/history` (Decision History)**:
+   - Review the complete chronological log from journey creation to elevator failure to accepted adaptation.
+
+---
+
+## 🛡️ License
+
+MIT License — Built for inclusive, accessible, and resilient travel worldwide.

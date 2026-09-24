@@ -1,105 +1,126 @@
 import React from 'react';
-import { Compass, RotateCcw, User, ActivitySquare } from 'lucide-react';
+import { Link, useLocation } from 'react-router-dom';
+import { Compass, RotateCcw, User, ActivitySquare, MapPin, Zap, RefreshCw, History, ShieldAlert } from 'lucide-react';
+import { useJourney } from '../context/JourneyContext.jsx';
+import { isGoogleMapsConfigured } from '../services/googleMapsLoader.js';
 
-export default function Navbar({
-  aiStatus,
-  currentScreen,
-  onReset,
-  onNavigateScreen
-}) {
+export default function Navbar() {
+  const location = useLocation();
+  const { aiStatus, routingMode, resetToBaseline, journeyState } = useJourney();
+
   const isAiLive = aiStatus?.geminiConfigured || aiStatus?.mode === 'LIVE_AI';
-  const showToggle = currentScreen === 'DASHBOARD' || currentScreen === 'OPERATIONS';
+  const isGoogleLive = routingMode === 'LIVE_GOOGLE' || isGoogleMapsConfigured();
+
+  const navLinks = [
+    { to: '/', label: 'Overview' },
+    { to: '/profile', label: 'Profile' },
+    { to: '/planner', label: 'Planner' },
+    { to: '/journey/active', label: 'Live Journey' },
+    { to: '/events', label: 'Events' },
+    { to: '/operator', label: 'Operator' },
+    { to: '/history', label: 'History' }
+  ];
 
   return (
-    <header className="bg-white border-b border-slate-200 sticky top-0 z-50 shadow-sm">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+    <header className="bg-white border-b border-slate-200 sticky top-0 z-50 shadow-xs">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
         
         {/* Brand Logo & Tagline */}
-        <div className="flex items-center gap-3 cursor-pointer" onClick={() => onNavigateScreen('PLAN')}>
+        <Link to="/" className="flex items-center gap-3 shrink-0">
           <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-700 via-brand-600 to-brand-500 flex items-center justify-center text-white shadow-glow-blue">
             <Compass className="w-6 h-6 animate-spin-slow" />
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <span className="font-extrabold text-xl tracking-tight text-slate-900 font-sans">
+            <div className="flex items-center gap-1.5">
+              <span className="font-extrabold text-lg sm:text-xl tracking-tight text-slate-900 font-sans">
                 WAYFARER<span className="text-brand-600">.AI</span>
               </span>
             </div>
-            <p className="text-xs text-slate-500 font-medium hidden sm:block">
+            <p className="text-[11px] text-slate-500 font-medium hidden md:block">
               Adaptive Journey Intelligence
             </p>
           </div>
-        </div>
+        </Link>
 
-        {/* Center Toggle (Traveler vs Operations) */}
-        {showToggle && (
-          <div className="absolute left-1/2 -translate-x-1/2 flex bg-slate-100 p-1 rounded-lg">
-            <button
-              onClick={() => onNavigateScreen('DASHBOARD')}
-              className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-xs font-bold transition-all ${
-                currentScreen !== 'OPERATIONS' 
-                  ? 'bg-white text-brand-700 shadow-sm' 
-                  : 'text-slate-500 hover:text-slate-700'
-              }`}
-            >
-              <User className="w-3.5 h-3.5" />
-              Traveler View
-            </button>
-            <button
-              onClick={() => onNavigateScreen('OPERATIONS')}
-              className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-xs font-bold transition-all ${
-                currentScreen === 'OPERATIONS' 
-                  ? 'bg-white text-amber-700 shadow-sm' 
-                  : 'text-slate-500 hover:text-slate-700'
-              }`}
-            >
-              <ActivitySquare className="w-3.5 h-3.5" />
-              Operations Center
-            </button>
-          </div>
-        )}
+        {/* Navigation Links */}
+        <nav className="hidden lg:flex items-center gap-1 bg-slate-50 p-1 rounded-xl border border-slate-200/80">
+          {navLinks.map((link) => {
+            const isActive = location.pathname === link.to || (link.to !== '/' && location.pathname.startsWith(link.to));
+            return (
+              <Link
+                key={link.to}
+                to={link.to}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  isActive
+                    ? 'bg-white text-brand-700 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                }`}
+              >
+                {link.label}
+              </Link>
+            );
+          })}
+        </nav>
 
         {/* Status Indicators & Action Controls */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           
-          {/* Active Status Badge */}
-          {currentScreen === 'DASHBOARD' && (
-            <div className="hidden md:flex items-center gap-2 px-3 py-1 bg-emerald-50 border border-emerald-200 rounded-full text-emerald-700 text-xs font-semibold">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-              JOURNEY ACTIVE
-            </div>
-          )}
-          {currentScreen === 'OPERATIONS' && (
-            <div className="hidden md:flex items-center gap-2 px-3 py-1 bg-amber-50 border border-amber-200 rounded-full text-amber-700 text-xs font-semibold">
-              <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
-              OPS ACTIVE
-            </div>
-          )}
-
-          {/* AI Live / Fallback Status Badge */}
+          {/* Maps Engine Mode Badge */}
           <div
-            title={isAiLive ? "Connected to live Google Gemini API" : "Using honest Deterministic Fallback Parser (100% offline resilient)"}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border ${
-              isAiLive
+            title={isGoogleLive ? "Connected to Google Maps & Places JavaScript API" : "Using offline-resilient deterministic routing simulation"}
+            className={`hidden sm:inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold border ${
+              isGoogleLive
                 ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
                 : 'bg-amber-50 border-amber-200 text-amber-800'
             }`}
           >
-            <span className={`w-2 h-2 rounded-full ${isAiLive ? 'bg-emerald-500' : 'bg-amber-500'}`}></span>
-            <span>{isAiLive ? '🟢 AI LIVE' : '🟡 DEMO FALLBACK'}</span>
+            <span className={`w-2 h-2 rounded-full ${isGoogleLive ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`}></span>
+            <span>{isGoogleLive ? 'GOOGLE ROUTING' : 'DEMO MODE'}</span>
+          </div>
+
+          {/* AI Status Badge */}
+          <div
+            title={isAiLive ? "Live Gemini AI API connected" : "Deterministic rule-based parser active"}
+            className={`hidden md:inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold border ${
+              isAiLive
+                ? 'bg-brand-50 border-brand-200 text-brand-800'
+                : 'bg-slate-100 border-slate-200 text-slate-700'
+            }`}
+          >
+            <span className={`w-2 h-2 rounded-full ${isAiLive ? 'bg-brand-500' : 'bg-slate-400'}`}></span>
+            <span>{isAiLive ? 'GEMINI' : 'RULE-BASED'}</span>
           </div>
 
           {/* Reset Journey Button */}
           <button
-            onClick={onReset}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition"
-            title="Reset Journey to Baseline State"
+            type="button"
+            onClick={resetToBaseline}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition shadow-2xs"
+            title="Reset Journey to Baseline Pristine Configuration"
           >
             <RotateCcw className="w-3.5 h-3.5" />
-            <span>Reset</span>
+            <span className="hidden sm:inline">Reset</span>
           </button>
         </div>
 
+      </div>
+
+      {/* Mobile Horizontal Navigation Bar */}
+      <div className="lg:hidden flex items-center justify-around border-t border-slate-100 bg-slate-50 px-2 py-1.5 overflow-x-auto text-[11px] font-bold">
+        {navLinks.map((link) => {
+          const isActive = location.pathname === link.to || (link.to !== '/' && location.pathname.startsWith(link.to));
+          return (
+            <Link
+              key={link.to}
+              to={link.to}
+              className={`px-2.5 py-1 rounded-md shrink-0 transition ${
+                isActive ? 'bg-white text-brand-700 shadow-2xs' : 'text-slate-600'
+              }`}
+            >
+              {link.label}
+            </Link>
+          );
+        })}
       </div>
     </header>
   );

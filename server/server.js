@@ -68,15 +68,13 @@ app.get("/api/journey/default", (req, res) => {
     const segments = segmentJourney(DEFAULT_STOPS, DEFAULT_TRAVELER);
     const scoreResult = calculateOverallJourneyScore(segments);
 
-    // Generate score breakdown and why-not for initial state
+    // Generate score breakdown and why-not for the first segment with routes
     let scoreBreakdown = null;
     let whyNotData = null;
-    if (segments.length > 2) {
-      const heroSegment = segments[2]; // S3
-      if (heroSegment && heroSegment.candidateRoutes) {
-        scoreBreakdown = generateScoreBreakdown(heroSegment.candidateRoutes, weights);
-        whyNotData = generateWhyNotExplanation(heroSegment.candidateRoutes, weights);
-      }
+    const firstScoredSegment = segments.find(s => s.candidateRoutes?.length > 0);
+    if (firstScoredSegment) {
+      scoreBreakdown = generateScoreBreakdown(firstScoredSegment.candidateRoutes, weights);
+      whyNotData = generateWhyNotExplanation(firstScoredSegment.candidateRoutes, weights);
     }
 
     res.json({
@@ -152,7 +150,7 @@ app.post("/api/journey/event", async (req, res) => {
     // 2. Check downstream cascade impact
     const downstreamResult = checkDownstreamImpact(
       eventResult.updatedSegments,
-      event.segmentId || "S3",
+      event.segmentId || journeyState.segments?.[0]?.id || "S1",
       eventResult.eventRecord,
       journeyState.stops || DEFAULT_STOPS,
       eventResult.graphImpact || null

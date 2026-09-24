@@ -1,7 +1,14 @@
 import React, { useState } from 'react';
 import { AlertTriangle, ShieldCheck, PhoneCall, Check, X, Bell } from 'lucide-react';
 
-export default function SafetyVerificationModal({ isOpen, onClose, onVerifiedFine }) {
+export default function SafetyVerificationModal({
+  isOpen,
+  onClose,
+  onVerifiedFine,
+  travelerName = 'Traveler',
+  segmentName = 'designated corridor',
+  coordinates = { lat: 18.9220, lng: 72.8347 }
+}) {
   const [assistedRequested, setAssistedRequested] = useState(false);
 
   if (!isOpen) return null;
@@ -30,14 +37,14 @@ export default function SafetyVerificationModal({ isOpen, onClose, onVerifiedFin
             <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-50 border border-amber-200 rounded-full text-amber-800 text-[11px] font-extrabold mb-3">
               <span>DEVIATION DETECTED</span>
               <span>→</span>
-              <span>VERIFYING JOURNEY</span>
+              <span>VERIFYING SAFETY</span>
             </div>
 
             <h3 className="text-xl font-extrabold text-slate-900 mb-2">
               Are you okay?
             </h3>
             <p className="text-xs text-slate-600 mb-6 leading-relaxed">
-              WAYFARER noticed you took an unmapped turn away from the designated accessible corridor near Mandovi Bridge. Please confirm your status.
+              WAYFARER noticed you took an unmapped turn away from the planned accessible path along {segmentName}. Please confirm your status.
             </p>
 
             {/* Actions */}
@@ -63,7 +70,7 @@ export default function SafetyVerificationModal({ isOpen, onClose, onVerifiedFin
 
             {/* Prototype Notice */}
             <p className="text-[10px] text-slate-400 font-medium">
-              Prototype simulation for hackathon demonstration.
+              Prototype simulation for hackathon demonstration. Demonstrates event ingestion from telemetry feeds.
             </p>
           </>
         ) : (
@@ -81,13 +88,13 @@ export default function SafetyVerificationModal({ isOpen, onClose, onVerifiedFin
               Emergency Contact Notified
             </h3>
             <p className="text-xs text-slate-600 mb-4 leading-relaxed">
-              Simulated telemetry sent to emergency contact with current GPS coordinates (15.4989° N, 73.8278° E) and nearest wheelchair-accessible shelter point.
+              Simulated telemetry sent to emergency contact with GPS telemetry ({coordinates.lat.toFixed(4)}° N, {coordinates.lng.toFixed(4)}° E) and nearest verified accessible corridor.
             </p>
 
             <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-left text-xs mb-6 space-y-1 text-slate-700">
               <div className="font-bold text-slate-900">Telemetry Payload:</div>
-              <div>• Traveler: Aditi (Wheelchair mobility)</div>
-              <div>• Nearest Accessible Hub: Mandovi River Patrol Post (240m)</div>
+              <div>• Traveler: {travelerName}</div>
+              <div>• Nearest Verified Point: Emergency Assistance Hub (240m)</div>
               <div>• Status: Simulated Prototype Dispatch</div>
             </div>
 

@@ -19,7 +19,7 @@ describe("Scoring Engine Tests", () => {
     };
 
     const weights = deriveTravelerWeights(wheelchairTraveler);
-    const sum = Number((weights.safety + weights.accessibility + weights.crowd + weights.convenience).toFixed(2));
+    const sum = Number((weights.safety + weights.accessibility + weights.crowd + weights.convenience + weights.cost).toFixed(2));
     
     assert.strictEqual(sum, 1.0);
     assert.strictEqual(weights.accessibility >= 0.35, true, "Wheelchair user should have highest accessibility weight");

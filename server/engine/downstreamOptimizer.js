@@ -39,7 +39,7 @@ export function timeStringToMinutes(timeStr = "12:00") {
  * @param {Object|null} graphImpact - Pre-computed graph impact from event engine
  * @returns {Object} Downstream impact analysis
  */
-export function checkDownstreamImpact(segments = [], affectedSegmentId = "S3", eventRecord = {}, stops = [], graphImpact = null) {
+export function checkDownstreamImpact(segments = [], affectedSegmentId = "", eventRecord = {}, stops = [], graphImpact = null) {
   const affectedIndex = segments.findIndex(s => s.id === affectedSegmentId);
 
   if (affectedIndex === -1 || affectedIndex >= segments.length - 1) {

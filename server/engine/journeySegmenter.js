@@ -118,7 +118,7 @@ export function segmentJourney(stops = [], traveler = {}) {
       destinationLng: destinationStop.lng,
       plannedDeparture: originStop.departureTime || originStop.arrivalTime || "10:00",
       plannedArrival: destinationStop.arrivalTime || "11:00",
-      status: i === 0 ? "ACTIVE" : (i === 2 ? "CURRENT_DEMO" : "PLANNED"), // S3 default active demo segment
+      status: i === 0 ? "ACTIVE" : "PLANNED",
       candidateRoutes: rankedRoutes,
       recommendedRouteId: recommendedRoute.id,
       journeyScore: recommendedRoute.score,

@@ -30,7 +30,8 @@ function haversineDistance(lat1, lon1, lat2, lon2) {
  * @returns {Object} { updatedSegments, affectedSegment, previousRecommendedId, newRecommendedId, routeChanged, scoreChanged, eventRecord, graphImpact }
  */
 export function applyJourneyEvent(currentJourneyState, eventPayload) {
-  const { type, segmentId = "S3", routeId, severity = 0.5, reason = "Real-world environmental change", delta = {}, delayMinutes, nodeId } = eventPayload;
+  const firstSegId = currentJourneyState.segments?.[0]?.id || "S1";
+  const { type, segmentId = firstSegId, routeId, severity = 0.5, reason = "Real-world environmental change", delta = {}, delayMinutes, nodeId } = eventPayload;
 
   const weights = deriveTravelerWeights(currentJourneyState.traveler);
   const segments = JSON.parse(JSON.stringify(currentJourneyState.segments || []));
@@ -132,7 +133,8 @@ export function applyJourneyEvent(currentJourneyState, eventPayload) {
 
   // ─── EVENT C: ACTIVITY_CANCELLATION ───
   else if (type === "ACTIVITY_CANCELLATION") {
-    const cancelledNodeId = nodeId || "stop-6";
+    const fallbackCancelNode = stops.find(s => s.type === 'experience' || s.type === 'attraction')?.id || stops[stops.length - 2]?.id;
+    const cancelledNodeId = nodeId || fallbackCancelNode;
     const cancelledStop = stops.find(s => s.id === cancelledNodeId);
 
     if (!cancelledStop) {
