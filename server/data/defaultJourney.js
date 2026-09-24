@@ -35,7 +35,14 @@ export const DEFAULT_STOPS = [
     lng: 73.8744,
     arrivalTime: "10:00",
     departureTime: "10:30",
-    description: "Journey origin point with accessible platform ramps."
+    description: "Journey origin point with accessible platform ramps.",
+    durationMin: 30,
+    minDurationMin: 30,
+    bufferMin: 45,
+    cost: { estimated: 0, currency: 'INR' },
+    openingHours: { open: '00:00', close: '23:59' },
+    accessibility: { score: 95, wheelchairAccess: true, elevatorRequired: true, stepFree: true },
+    isStrictDeadline: false
   },
   {
     id: "stop-2",
@@ -47,7 +54,14 @@ export const DEFAULT_STOPS = [
     lng: 73.8278,
     arrivalTime: "14:30",
     departureTime: "16:00",
-    description: "Wheelchair-accessible hotel with step-free entrance and elevators."
+    description: "Wheelchair-accessible hotel with step-free entrance and elevators.",
+    durationMin: 90,
+    minDurationMin: 30,
+    bufferMin: 45,
+    cost: { estimated: 0, currency: 'INR' },
+    openingHours: { open: '00:00', close: '23:59' },
+    accessibility: { score: 90, wheelchairAccess: true, elevatorRequired: true, stepFree: true },
+    isStrictDeadline: false
   },
   {
     id: "stop-3",
@@ -59,7 +73,14 @@ export const DEFAULT_STOPS = [
     lng: 73.8320,
     arrivalTime: "16:30",
     departureTime: "19:00",
-    description: "Historic cultural area with paved walking pathways along Mandovi river."
+    description: "Historic cultural area with paved walking pathways along Mandovi river.",
+    durationMin: 150,
+    minDurationMin: 60,
+    bufferMin: 45,
+    cost: { estimated: 0, currency: 'INR' },
+    openingHours: { open: '06:00', close: '22:00' },
+    accessibility: { score: 85, wheelchairAccess: true, elevatorRequired: false, stepFree: true },
+    isStrictDeadline: false
   },
   {
     id: "stop-4",
@@ -71,7 +92,14 @@ export const DEFAULT_STOPS = [
     lng: 73.7737,
     arrivalTime: "10:30",
     departureTime: "13:00",
-    description: "17th-century Portuguese fort with panoramic Arabian Sea views and elevator-assisted viewing deck."
+    description: "17th-century Portuguese fort with panoramic Arabian Sea views and elevator-assisted viewing deck.",
+    durationMin: 150,
+    minDurationMin: 60,
+    bufferMin: 45,
+    cost: { estimated: 200, currency: 'INR' },
+    openingHours: { open: '08:30', close: '17:30' },
+    accessibility: { score: 80, wheelchairAccess: true, elevatorRequired: true, stepFree: false },
+    isStrictDeadline: false
   },
   {
     id: "stop-5",
@@ -83,7 +111,14 @@ export const DEFAULT_STOPS = [
     lng: 73.7630,
     arrivalTime: "14:00",
     departureTime: "16:30",
-    description: "Accessible coastal boardwalk with beach wheelchair matting and sunset deck."
+    description: "Accessible coastal boardwalk with beach wheelchair matting and sunset deck.",
+    durationMin: 150,
+    minDurationMin: 60,
+    bufferMin: 45,
+    cost: { estimated: 0, currency: 'INR' },
+    openingHours: { open: '06:00', close: '19:00' },
+    accessibility: { score: 95, wheelchairAccess: true, elevatorRequired: false, stepFree: true },
+    isStrictDeadline: false
   },
   {
     id: "stop-6",
@@ -95,7 +130,14 @@ export const DEFAULT_STOPS = [
     lng: 73.8150,
     arrivalTime: "17:30",
     departureTime: "19:30",
-    description: "Traditional vibrant Goan market for spices, handicrafts, and local delicacies."
+    description: "Traditional vibrant Goan market for spices, handicrafts, and local delicacies.",
+    durationMin: 120,
+    minDurationMin: 45,
+    bufferMin: 45,
+    cost: { estimated: 500, currency: 'INR' },
+    openingHours: { open: '09:00', close: '20:30' },
+    accessibility: { score: 75, wheelchairAccess: true, elevatorRequired: false, stepFree: false },
+    isStrictDeadline: false
   },
   {
     id: "stop-7",
@@ -107,7 +149,14 @@ export const DEFAULT_STOPS = [
     lng: 73.8278,
     arrivalTime: "20:00",
     departureTime: "21:30",
-    description: "Evening return to hotel accommodation."
+    description: "Evening return to hotel accommodation.",
+    durationMin: 90,
+    minDurationMin: 30,
+    bufferMin: 45,
+    cost: { estimated: 0, currency: 'INR' },
+    openingHours: { open: '00:00', close: '23:59' },
+    accessibility: { score: 90, wheelchairAccess: true, elevatorRequired: true, stepFree: true },
+    isStrictDeadline: false
   },
   {
     id: "stop-8",
@@ -119,21 +168,18 @@ export const DEFAULT_STOPS = [
     lng: 73.8744,
     arrivalTime: "18:30",
     departureTime: "19:00",
-    description: "Final journey completion point."
+    description: "Final journey completion point.",
+    durationMin: 30,
+    minDurationMin: 30,
+    bufferMin: 45,
+    cost: { estimated: 0, currency: 'INR' },
+    openingHours: { open: '00:00', close: '23:59' },
+    accessibility: { score: 95, wheelchairAccess: true, elevatorRequired: true, stepFree: true },
+    isStrictDeadline: true
   }
 ];
 
-/**
- * Predefined candidate routes for prototype segments
- * Calibrated with weights { safety: 0.30, accessibility: 0.40, crowd: 0.20, convenience: 0.10 }
- * Day 1 Segments average = 91
- * Day 2 Segments average = 87
- * Day 3 Segments average = 92
- * Overall Journey Score = (91 + 87 + 92) / 3 = 90 exact!
- */
 export const CANDIDATE_ROUTES_DATABASE = {
-  // S1: Day 1 Transit Pune -> Hotel Panjim (Target Score: 89)
-  // (0.30*90) + (0.40*90) + (0.20*85) + (0.10*90) = 27 + 36 + 17 + 9 = 89
   "S1": [
     {
       id: "A",
@@ -145,6 +191,7 @@ export const CANDIDATE_ROUTES_DATABASE = {
       accessibility: 80,
       crowd: 70,
       convenience: 92,
+      cost: { estimated: 1200, currency: 'INR' },
       accessibleFeatures: ["Accessible expressway rest stops every 60km", "Ramped washrooms"],
       coordinates: [
         [18.5284, 73.8744],
@@ -164,6 +211,7 @@ export const CANDIDATE_ROUTES_DATABASE = {
       accessibility: 90,
       crowd: 85,
       convenience: 90,
+      cost: { estimated: 1400, currency: 'INR' },
       accessibleFeatures: ["Continuous low-gradient paved route", "Priority assistance fuel stations"],
       coordinates: [
         [18.5284, 73.8744],
@@ -183,6 +231,7 @@ export const CANDIDATE_ROUTES_DATABASE = {
       accessibility: 78,
       crowd: 90,
       convenience: 75,
+      cost: { estimated: 1100, currency: 'INR' },
       accessibleFeatures: ["Low traffic density", "Smooth tarmac"],
       coordinates: [
         [18.5284, 73.8744],
@@ -193,9 +242,6 @@ export const CANDIDATE_ROUTES_DATABASE = {
       ]
     }
   ],
-
-  // S2: Day 1 Hotel Panjim -> Panjim Promenade (Target Score: 93)
-  // (0.30*92) + (0.40*96) + (0.20*90) + (0.10*90) = 27.6 + 38.4 + 18 + 9 = 93.0 -> Day 1 avg = (89+93)/2 = 91
   "S2": [
     {
       id: "A",
@@ -207,6 +253,7 @@ export const CANDIDATE_ROUTES_DATABASE = {
       accessibility: 72,
       crowd: 65,
       convenience: 92,
+      cost: { estimated: 50, currency: 'INR' },
       accessibleFeatures: ["Standard curbs", "Occasional pavers"],
       coordinates: [
         [15.4989, 73.8278],
@@ -224,6 +271,7 @@ export const CANDIDATE_ROUTES_DATABASE = {
       accessibility: 96,
       crowd: 90,
       convenience: 90,
+      cost: { estimated: 80, currency: 'INR' },
       accessibleFeatures: ["Zero steps", "Tactile paving", "Continuous safety railing"],
       coordinates: [
         [15.4989, 73.8278],
@@ -242,6 +290,7 @@ export const CANDIDATE_ROUTES_DATABASE = {
       accessibility: 88,
       crowd: 92,
       convenience: 80,
+      cost: { estimated: 60, currency: 'INR' },
       accessibleFeatures: ["Gentle slopes", "Low vehicular traffic"],
       coordinates: [
         [15.4989, 73.8278],
@@ -251,11 +300,6 @@ export const CANDIDATE_ROUTES_DATABASE = {
       ]
     }
   ],
-
-  // S3: Day 2 Panjim -> Fort Aguada (HERO DEMO SEGMENT - Target Score: 91)
-  // Route B: (0.30*90) + (0.40*96) + (0.20*85) + (0.10*86) = 27 + 38.4 + 17 + 8.6 = 91.0
-  // After Elevator Failure: (0.30*90) + (0.40*38) + (0.20*85) + (0.10*86) = 27 + 15.2 + 17 + 8.6 = 67.8 -> 68
-  // Route C: (0.30*88) + (0.40*91) + (0.20*85) + (0.10*82) = 26.4 + 36.4 + 17 + 8.2 = 88.0
   "S3": [
     {
       id: "A",
@@ -267,6 +311,7 @@ export const CANDIDATE_ROUTES_DATABASE = {
       accessibility: 45,
       crowd: 61,
       convenience: 92,
+      cost: { estimated: 150, currency: 'INR' },
       accessibleFeatures: ["Cobblestone stairs near lower bastion", "Narrow curbs"],
       coordinates: [
         [15.4920, 73.8320],
@@ -286,6 +331,7 @@ export const CANDIDATE_ROUTES_DATABASE = {
       accessibility: 96,
       crowd: 85,
       convenience: 86,
+      cost: { estimated: 200, currency: 'INR' },
       accessibleFeatures: [
         "Step-free ramped access (1:12 slope)",
         "Elevator-assisted viewing deck access",
@@ -310,6 +356,7 @@ export const CANDIDATE_ROUTES_DATABASE = {
       accessibility: 91,
       crowd: 85,
       convenience: 82,
+      cost: { estimated: 180, currency: 'INR' },
       accessibleFeatures: [
         "Step-free upper plateau bypass (slope 1:15)",
         "Wide paved path (2.2m width)",
@@ -325,9 +372,6 @@ export const CANDIDATE_ROUTES_DATABASE = {
       ]
     }
   ],
-
-  // S4: Day 2 Fort Aguada -> Candolim Beach (Target Score: 87)
-  // (0.30*88) + (0.40*90) + (0.20*80) + (0.10*86) = 26.4 + 36 + 16 + 8.6 = 87.0
   "S4": [
     {
       id: "A",
@@ -339,6 +383,7 @@ export const CANDIDATE_ROUTES_DATABASE = {
       accessibility: 65,
       crowd: 60,
       convenience: 90,
+      cost: { estimated: 80, currency: 'INR' },
       accessibleFeatures: ["Soft sand crossing at entry", "Moderate slope"],
       coordinates: [
         [15.4927, 73.7737],
@@ -356,6 +401,7 @@ export const CANDIDATE_ROUTES_DATABASE = {
       accessibility: 90,
       crowd: 80,
       convenience: 86,
+      cost: { estimated: 120, currency: 'INR' },
       accessibleFeatures: ["Full Mobi-Mat beach wheelchair access", "Step-free deck connector"],
       coordinates: [
         [15.4927, 73.7737],
@@ -374,6 +420,7 @@ export const CANDIDATE_ROUTES_DATABASE = {
       accessibility: 85,
       crowd: 90,
       convenience: 80,
+      cost: { estimated: 100, currency: 'INR' },
       accessibleFeatures: ["Continuous shade canopy", "Smooth sidewalk with curb ramps"],
       coordinates: [
         [15.4927, 73.7737],
@@ -383,9 +430,6 @@ export const CANDIDATE_ROUTES_DATABASE = {
       ]
     }
   ],
-
-  // S5: Day 2 Candolim Beach -> Mapusa Local Market (Target Score: 83)
-  // (0.30*84) + (0.40*85) + (0.20*80) + (0.10*80) = 25.2 + 34 + 16 + 8 = 83.2 -> 83
   "S5": [
     {
       id: "A",
@@ -397,6 +441,7 @@ export const CANDIDATE_ROUTES_DATABASE = {
       accessibility: 65,
       crowd: 55,
       convenience: 90,
+      cost: { estimated: 200, currency: 'INR' },
       accessibleFeatures: ["High traffic density", "Standard sidewalks"],
       coordinates: [
         [15.5180, 73.7630],
@@ -415,6 +460,7 @@ export const CANDIDATE_ROUTES_DATABASE = {
       accessibility: 85,
       crowd: 80,
       convenience: 80,
+      cost: { estimated: 250, currency: 'INR' },
       accessibleFeatures: ["Designated accessible parking stall", "Barrier-free market entrance #2"],
       coordinates: [
         [15.5180, 73.7630],
@@ -433,6 +479,7 @@ export const CANDIDATE_ROUTES_DATABASE = {
       accessibility: 82,
       crowd: 88,
       convenience: 75,
+      cost: { estimated: 220, currency: 'INR' },
       accessibleFeatures: ["Bypasses market central congestion", "Direct drop-off at craft courtyard"],
       coordinates: [
         [15.5180, 73.7630],
@@ -442,10 +489,6 @@ export const CANDIDATE_ROUTES_DATABASE = {
       ]
     }
   ],
-
-  // S6: Day 2 Mapusa Market -> Grand Panjim Hotel (Target Score: 87)
-  // (0.30*88) + (0.40*90) + (0.20*80) + (0.10*86) = 26.4 + 36 + 16 + 8.6 = 87.0
-  // Day 2 avg = (91 + 87 + 83 + 87) / 4 = 348 / 4 = 87.0
   "S6": [
     {
       id: "A",
@@ -457,6 +500,7 @@ export const CANDIDATE_ROUTES_DATABASE = {
       accessibility: 75,
       crowd: 65,
       convenience: 92,
+      cost: { estimated: 180, currency: 'INR' },
       accessibleFeatures: ["Direct highway bridge with smooth ramps"],
       coordinates: [
         [15.5925, 73.8150],
@@ -474,6 +518,7 @@ export const CANDIDATE_ROUTES_DATABASE = {
       accessibility: 90,
       crowd: 80,
       convenience: 86,
+      cost: { estimated: 200, currency: 'INR' },
       accessibleFeatures: ["Well-lit arterial road", "Zero stairs to hotel lobby entrance"],
       coordinates: [
         [15.5925, 73.8150],
@@ -492,6 +537,7 @@ export const CANDIDATE_ROUTES_DATABASE = {
       accessibility: 84,
       crowd: 88,
       convenience: 80,
+      cost: { estimated: 190, currency: 'INR' },
       accessibleFeatures: ["Bypasses commercial strip", "Continuous flat asphalt"],
       coordinates: [
         [15.5925, 73.8150],
@@ -501,11 +547,6 @@ export const CANDIDATE_ROUTES_DATABASE = {
       ]
     }
   ],
-
-  // S7: Day 3 Goa (Hotel) -> Pune Railway Station (Target Score: 92)
-  // (0.30*92) + (0.40*93) + (0.20*90) + (0.10*92) = 27.6 + 37.2 + 18 + 9.2 = 92.0
-  // Day 3 avg = 92
-  // Overall = round((91 + 87 + 92) / 3) = round(270 / 3) = 90 exact!
   "S7": [
     {
       id: "A",
@@ -517,6 +558,7 @@ export const CANDIDATE_ROUTES_DATABASE = {
       accessibility: 85,
       crowd: 75,
       convenience: 92,
+      cost: { estimated: 1200, currency: 'INR' },
       accessibleFeatures: ["Assisted rest hubs", "Accessible toll lanes"],
       coordinates: [
         [15.4989, 73.8278],
@@ -536,6 +578,7 @@ export const CANDIDATE_ROUTES_DATABASE = {
       accessibility: 93,
       crowd: 90,
       convenience: 92,
+      cost: { estimated: 1500, currency: 'INR' },
       accessibleFeatures: ["Full barrier-free boarding ramp", "Reserved accessible carriage"],
       coordinates: [
         [15.4989, 73.8278],
@@ -555,6 +598,7 @@ export const CANDIDATE_ROUTES_DATABASE = {
       accessibility: 86,
       crowd: 92,
       convenience: 80,
+      cost: { estimated: 1100, currency: 'INR' },
       accessibleFeatures: ["Low traffic density", "Scenic vistas"],
       coordinates: [
         [15.4989, 73.8278],
@@ -565,3 +609,45 @@ export const CANDIDATE_ROUTES_DATABASE = {
     }
   ]
 };
+
+export const ALTERNATIVE_ACTIVITIES = [
+  {
+    id: 'alt-1',
+    name: 'Pilerne Barrier-Free Art Courtyard',
+    type: 'experience',
+    city: 'Pilerne, Goa',
+    lat: 15.5350, lng: 73.8050,
+    openingHours: { open: '09:00', close: '20:30' },
+    durationMin: 90, minDurationMin: 45,
+    cost: { estimated: 150, currency: 'INR' },
+    accessibility: { score: 92, wheelchairAccess: true, elevatorRequired: false, stepFree: true },
+    description: 'Open-air art gallery with wheelchair-accessible paths and shaded seating.',
+    replacesTypes: ['experience', 'attraction']
+  },
+  {
+    id: 'alt-2',
+    name: 'Dona Paula Accessible Jetty Viewpoint',
+    type: 'attraction',
+    city: 'Dona Paula, Goa',
+    lat: 15.4560, lng: 73.8040,
+    openingHours: { open: '06:00', close: '19:30' },
+    durationMin: 75, minDurationMin: 30,
+    cost: { estimated: 50, currency: 'INR' },
+    accessibility: { score: 88, wheelchairAccess: true, elevatorRequired: false, stepFree: true },
+    description: 'Panoramic ocean viewpoint with ramped walkway and accessible parking.',
+    replacesTypes: ['attraction', 'experience']
+  },
+  {
+    id: 'alt-3',
+    name: 'Calangute Heritage Craft Market',
+    type: 'experience',
+    city: 'Calangute, Goa',
+    lat: 15.5437, lng: 73.7554,
+    openingHours: { open: '10:00', close: '21:00' },
+    durationMin: 90, minDurationMin: 40,
+    cost: { estimated: 300, currency: 'INR' },
+    accessibility: { score: 85, wheelchairAccess: true, elevatorRequired: false, stepFree: true },
+    description: 'Accessible local crafts market with wide aisles and step-free stalls.',
+    replacesTypes: ['experience']
+  }
+];

@@ -5,13 +5,14 @@ import Navbar from './components/Navbar.jsx';
 import PlanJourneyView from './components/PlanJourneyView.jsx';
 import JourneyReviewView from './components/JourneyReviewView.jsx';
 import DashboardView from './components/DashboardView.jsx';
+import OperationsCenterView from './components/OperationsCenterView.jsx';
 import SafetyVerificationModal from './components/dashboard/SafetyVerificationModal.jsx';
 
 import { checkHealth, fetchDefaultJourney, parseJourneyPrompt, postJourneyEvent, explainJourneyPlan } from './services/api.js';
 import { INITIAL_DEFAULT_STATE } from './data/mockData.js';
 
 export default function App() {
-  const [currentScreen, setCurrentScreen] = useState('PLAN'); // 'PLAN' | 'REVIEW' | 'DASHBOARD'
+  const [currentScreen, setCurrentScreen] = useState('PLAN'); // 'PLAN' | 'REVIEW' | 'DASHBOARD' | 'OPERATIONS'
   const [isLoading, setIsLoading] = useState(false);
   const [aiStatus, setAiStatus] = useState({ geminiConfigured: false, mode: 'DEMO_FALLBACK' });
 
@@ -116,6 +117,10 @@ export default function App() {
           explanationSource: result.explanationSource,
           eventRecord: result.eventRecord,
           downstreamImpact: result.downstreamImpact,
+          graphImpact: result.graphImpact,
+          structuredChange: result.structuredChange,
+          whyNotData: result.whyNotData,
+          scoreBreakdown: result.scoreBreakdown,
           eventHistory: [result.eventRecord, ...(prev.eventHistory || [])]
         }));
       }
@@ -155,11 +160,91 @@ export default function App() {
           explanationSource: result.explanationSource,
           eventRecord: result.eventRecord,
           downstreamImpact: result.downstreamImpact,
+          graphImpact: result.graphImpact,
+          structuredChange: result.structuredChange,
+          whyNotData: result.whyNotData,
+          scoreBreakdown: result.scoreBreakdown,
           eventHistory: [result.eventRecord, ...(prev.eventHistory || [])]
         }));
       }
     } catch (err) {
       console.error("[App] Crowd event error:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Trigger Transport Delay (+50 min)
+  const handleTriggerTransportDelay = async () => {
+    setIsLoading(true);
+    try {
+      setActiveSegmentId('S3');
+      const eventPayload = {
+        type: 'TRANSPORT_DELAY',
+        segmentId: 'S3',
+        delayMinutes: 50,
+        reason: 'Bus breakdown on NH66 coastal highway — replacement vehicle dispatched, +50 min delay'
+      };
+      const result = await postJourneyEvent(journeyState, eventPayload);
+      if (result && result.success) {
+        setJourneyState(prev => ({
+          ...prev,
+          segments: result.segments,
+          overallScore: result.overallScore,
+          fitLevel: result.fitLevel,
+          dayScores: result.dayScores,
+          explanation: result.explanation,
+          explanationBadge: result.explanationBadge,
+          explanationSource: result.explanationSource,
+          eventRecord: result.eventRecord,
+          downstreamImpact: result.downstreamImpact,
+          graphImpact: result.graphImpact,
+          structuredChange: result.structuredChange,
+          whyNotData: result.whyNotData,
+          scoreBreakdown: result.scoreBreakdown,
+          eventHistory: [result.eventRecord, ...(prev.eventHistory || [])]
+        }));
+      }
+    } catch (err) {
+      console.error('[App] Transport delay error:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Trigger Activity Cancellation (Market)
+  const handleTriggerActivityCancellation = async () => {
+    setIsLoading(true);
+    try {
+      setActiveSegmentId('S5');
+      const eventPayload = {
+        type: 'ACTIVITY_CANCELLATION',
+        nodeId: 'stop-6',
+        segmentId: 'S5',
+        reason: 'Mapusa Market temporarily closed for local festival preparations'
+      };
+      const result = await postJourneyEvent(journeyState, eventPayload);
+      if (result && result.success) {
+        setJourneyState(prev => ({
+          ...prev,
+          segments: result.segments,
+          overallScore: result.overallScore,
+          fitLevel: result.fitLevel,
+          dayScores: result.dayScores,
+          explanation: result.explanation,
+          explanationBadge: result.explanationBadge,
+          explanationSource: result.explanationSource,
+          eventRecord: result.eventRecord,
+          downstreamImpact: result.downstreamImpact,
+          graphImpact: result.graphImpact,
+          structuredChange: result.structuredChange,
+          whyNotData: result.whyNotData,
+          scoreBreakdown: result.scoreBreakdown,
+          eventHistory: [result.eventRecord, ...(prev.eventHistory || [])]
+        }));
+      }
+    } catch (err) {
+      console.error('[App] Activity cancellation error:', err);
     } finally {
       setIsLoading(false);
     }
@@ -200,14 +285,22 @@ export default function App() {
           explanationSource: "LOCAL_EXPLANATION",
           eventRecord: null,
           downstreamImpact: null,
-          eventHistory: []
+          eventHistory: [],
+          graphImpact: null,
+          structuredChange: null,
+          whyNotData: null,
+          scoreBreakdown: null
         });
       } else {
         setJourneyState({
           ...INITIAL_DEFAULT_STATE,
           eventRecord: null,
           downstreamImpact: null,
-          eventHistory: []
+          eventHistory: [],
+          graphImpact: null,
+          structuredChange: null,
+          whyNotData: null,
+          scoreBreakdown: null
         });
       }
       setActiveSegmentId('S3');
@@ -254,8 +347,18 @@ export default function App() {
             onTriggerElevatorFailure={handleTriggerElevatorFailure}
             onTriggerCrowdSpike={handleTriggerCrowdSpike}
             onTriggerDeviation={handleTriggerDeviation}
+            onTriggerTransportDelay={handleTriggerTransportDelay}
+            onTriggerActivityCancellation={handleTriggerActivityCancellation}
             onResetJourney={handleResetJourney}
             isLoading={isLoading}
+          />
+        )}
+
+        {currentScreen === 'OPERATIONS' && (
+          <OperationsCenterView
+            journeyState={journeyState}
+            onApproveAdaptation={handleResetJourney}
+            onViewJourney={() => setCurrentScreen('DASHBOARD')}
           />
         )}
       </main>

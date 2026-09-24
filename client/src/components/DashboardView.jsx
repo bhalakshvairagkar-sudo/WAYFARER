@@ -11,6 +11,10 @@ import ExplanationCard from './dashboard/ExplanationCard.jsx';
 import DownstreamImpactCard from './dashboard/DownstreamImpactCard.jsx';
 import EventHistoryLog from './dashboard/EventHistoryLog.jsx';
 
+import ScoreBreakdownCard from './dashboard/ScoreBreakdownCard.jsx';
+import WhyNotCard from './dashboard/WhyNotCard.jsx';
+import WhyChangedCard from './dashboard/WhyChangedCard.jsx';
+
 export default function DashboardView({
   journeyState,
   activeSegmentId,
@@ -18,6 +22,8 @@ export default function DashboardView({
   onTriggerElevatorFailure,
   onTriggerCrowdSpike,
   onTriggerDeviation,
+  onTriggerTransportDelay,
+  onTriggerActivityCancellation,
   onResetJourney,
   isLoading
 }) {
@@ -34,7 +40,10 @@ export default function DashboardView({
     explanationSource,
     eventRecord,
     downstreamImpact,
-    eventHistory = []
+    eventHistory = [],
+    structuredChange,
+    whyNotData,
+    scoreBreakdown
   } = journeyState;
 
   // Selected segment object
@@ -84,15 +93,24 @@ export default function DashboardView({
           <RouteComparisonMatrix
             candidateRoutes={activeSegment?.candidateRoutes || []}
             activeSegmentName={`${activeSegment?.origin} → ${activeSegment?.destination}`}
+            weights={weights}
           />
 
           <AdaptiveEventControls
             onTriggerElevatorFailure={onTriggerElevatorFailure}
             onTriggerCrowdSpike={onTriggerCrowdSpike}
             onTriggerDeviation={onTriggerDeviation}
+            onTriggerTransportDelay={onTriggerTransportDelay}
+            onTriggerActivityCancellation={onTriggerActivityCancellation}
             onResetJourney={onResetJourney}
             isLoading={isLoading}
           />
+
+          {structuredChange && <WhyChangedCard structuredChange={structuredChange} />}
+          
+          {whyNotData && <WhyNotCard whyNotData={whyNotData} />}
+          
+          {scoreBreakdown && <ScoreBreakdownCard scoreBreakdown={scoreBreakdown} weights={weights} />}
 
           <ExplanationCard
             explanation={explanation}
