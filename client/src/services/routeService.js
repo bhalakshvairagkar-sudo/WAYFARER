@@ -95,36 +95,60 @@ const POPULAR_HUBS = [
   { placeId: 'fb_10', name: 'Bengaluru City Central Terminal', formattedAddress: 'KSR Bengaluru City Junction, Majestic, Bengaluru', lat: 12.9774, lng: 77.5693 }
 ];
 
-function fallbackPlaceSearch(cleanQuery) {
+async function fallbackPlaceSearch(cleanQuery) {
   const matches = POPULAR_HUBS.filter(
     (h) => h.name.toLowerCase().includes(cleanQuery) || h.formattedAddress.toLowerCase().includes(cleanQuery)
   );
 
   if (matches.length > 0) return matches;
 
-  // Synthesize place if query is reasonable
+  // Synthesize place by attempting OpenStreetMap Nominatim geocoding
+  try {
+    const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(cleanQuery)}&format=json&limit=3`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.length > 0) {
+        return data.map((item, idx) => ({
+          placeId: `nom_${item.place_id}_${idx}`,
+          name: item.display_name.split(',')[0] || cleanQuery,
+          formattedAddress: item.display_name,
+          lat: parseFloat(item.lat),
+          lng: parseFloat(item.lon),
+          provider: 'OSM_NOMINATIM'
+        }));
+      }
+    }
+  } catch (err) {
+    console.warn('[RouteService] Nominatim fallback search failed:', err.message);
+  }
+
   return [
     {
       placeId: `fb_custom_${Date.now()}`,
       name: cleanQuery.replace(/\b\w/g, (c) => c.toUpperCase()),
-      formattedAddress: `${cleanQuery.replace(/\b\w/g, (c) => c.toUpperCase())}, Central District`,
-      lat: 18.9220 + Math.random() * 0.05,
-      lng: 72.8347 + Math.random() * 0.05,
+      formattedAddress: `${cleanQuery.replace(/\b\w/g, (c) => c.toUpperCase())}, Search Area`,
+      lat: 20.5937 + (Math.random() - 0.5) * 10, // Random somewhere in central India
+      lng: 78.9629 + (Math.random() - 0.5) * 10, // Random somewhere in central India
       provider: 'OFFLINE_FALLBACK'
     }
   ];
 }
 
-function resolveFallbackCoordinates(name = '') {
+async function resolveFallbackCoordinates(name = '') {
   const match = POPULAR_HUBS.find((h) => h.name.toLowerCase().includes(name.toLowerCase()));
   if (match) return match;
+
+  const results = await fallbackPlaceSearch(name);
+  if (results && results.length > 0) {
+    return results[0];
+  }
 
   return {
     placeId: `fb_loc_${Date.now()}`,
     name: name || 'Custom Waypoint',
-    formattedAddress: `${name || 'Selected Location'}, Accessible Zone`,
-    lat: 18.9220,
-    lng: 72.8347,
+    formattedAddress: `${name || 'Selected Location'}, Unknown Area`,
+    lat: 20.5937,
+    lng: 78.9629,
     provider: 'OFFLINE_FALLBACK'
   };
 }
@@ -193,8 +217,10 @@ export async function calculateRoutes({ origin, destination, waypoints = [], tra
   // Try OSRM if Google Maps is not configured or failed
   try {
     const waypointsStr = waypoints.map((w) => `;${w.lng},${w.lat}`).join('');
+    // Use driving profile for long trips across India to avoid foot routing failure
+    const osrmProfile = directDistKm > 20 ? 'driving' : 'foot';
     // Note: OSRM uses lon,lat format
-    const osrmUrl = `https://router.project-osrm.org/route/v1/foot/${originLng},${originLat}${waypointsStr};${destLng},${destLat}?overview=full&geometries=geojson&alternatives=true`;
+    const osrmUrl = `https://router.project-osrm.org/route/v1/${osrmProfile}/${originLng},${originLat}${waypointsStr};${destLng},${destLat}?overview=full&geometries=geojson&alternatives=true`;
     const osrmResponse = await fetch(osrmUrl);
     
     if (osrmResponse.ok) {

@@ -162,8 +162,8 @@ export function fallbackJourneyParser(promptText = "", formData = {}) {
         name: `${origin} Departure Terminal`,
         type: "transport",
         city: origin,
-        lat: 18.9696,
-        lng: 72.8193,
+        lat: 20.5937,
+        lng: 78.9629,
         arrivalTime: "08:00",
         departureTime: "08:45",
         description: `Origin transit hub with step-free accessible platform`,
@@ -177,8 +177,8 @@ export function fallbackJourneyParser(promptText = "", formData = {}) {
         name: `${destination} Central Accessible Hotel`,
         type: "stay",
         city: destination,
-        lat: 26.9124,
-        lng: 75.7873,
+        lat: 28.6139,
+        lng: 77.2090,
         arrivalTime: "14:00",
         departureTime: "16:00",
         description: `Wheelchair-accessible stay featuring roll-in showers and wide elevators`,
@@ -192,8 +192,8 @@ export function fallbackJourneyParser(promptText = "", formData = {}) {
         name: `${destination} Heritage Square & Promenade`,
         type: "attraction",
         city: destination,
-        lat: 26.9239,
-        lng: 75.8267,
+        lat: 28.6239,
+        lng: 77.2167,
         arrivalTime: "16:30",
         departureTime: "18:30",
         description: `Paved historic district with continuous ramp access and low-gradient pathways`,
@@ -207,8 +207,8 @@ export function fallbackJourneyParser(promptText = "", formData = {}) {
         name: `${destination} Cultural Center & Art Pavilion`,
         type: "experience",
         city: destination,
-        lat: 26.9150,
-        lng: 75.8100,
+        lat: 28.6150,
+        lng: 77.2100,
         arrivalTime: "10:30",
         departureTime: "13:00",
         description: `Barrier-free cultural venue with sensory-adapted quiet zones`,
@@ -222,8 +222,8 @@ export function fallbackJourneyParser(promptText = "", formData = {}) {
         name: `${destination} Accessible Craft Bazaar`,
         type: "experience",
         city: destination,
-        lat: 26.9200,
-        lng: 75.8200,
+        lat: 28.6200,
+        lng: 77.2200,
         arrivalTime: "15:00",
         departureTime: "17:30",
         description: `Regional artisan market with wide pedestrian walkways and tactile paving`,
@@ -237,8 +237,8 @@ export function fallbackJourneyParser(promptText = "", formData = {}) {
         name: `${destination} Return Transit Terminal`,
         type: "transport",
         city: destination,
-        lat: 26.9180,
-        lng: 75.7900,
+        lat: 28.6180,
+        lng: 77.2000,
         arrivalTime: "18:30",
         departureTime: "19:30",
         description: `Return departure terminal with priority assisted boarding`,
@@ -333,7 +333,7 @@ ${JSON.stringify(formData, null, 2)}
       return fallbackJourneyParser(promptText, formData);
     }
 
-    // Merge coordinates if available in default database, or use plausible coordinates
+    // Merge coordinates if available in default database, or use AI-generated coordinates
     const mappedStops = parsedJson.stops.map((stop, idx) => {
       const matchDefault = DEFAULT_STOPS.find(ds => ds.name.toLowerCase().includes(stop.name.toLowerCase()) || stop.name.toLowerCase().includes(ds.name.toLowerCase()));
       return {
@@ -342,8 +342,8 @@ ${JSON.stringify(formData, null, 2)}
         name: stop.name,
         type: stop.type || "attraction",
         city: stop.city || parsedJson.trip.destination || "Destination",
-        lat: matchDefault ? matchDefault.lat : 18.9220 + (idx * 0.015),
-        lng: matchDefault ? matchDefault.lng : 72.8347 + (idx * 0.01),
+        lat: matchDefault ? matchDefault.lat : (stop.lat || 20.5937 + (idx * 0.015)),
+        lng: matchDefault ? matchDefault.lng : (stop.lng || 78.9629 + (idx * 0.01)),
         arrivalTime: matchDefault?.arrivalTime || `${10 + (idx * 2)}:00`,
         departureTime: matchDefault?.departureTime || `${12 + (idx * 2)}:00`,
         description: stop.description || `Stop ${idx + 1}`

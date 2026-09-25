@@ -22,30 +22,9 @@ export default function PlannerPageView() {
   const navigate = useNavigate();
   const { journeyState, planNewJourney, isLoading } = useJourney();
 
-  const [origin, setOrigin] = useState({
-    name: 'Mumbai Central Terminus',
-    formattedAddress: 'Mumbai Central, Mumbai, Maharashtra 400008',
-    lat: 18.9696,
-    lng: 72.8193
-  });
-
-  const [destination, setDestination] = useState({
-    name: 'Marine Drive Accessible Promenade',
-    formattedAddress: 'Netaji Subhash Chandra Bose Road, Marine Drive, Mumbai',
-    lat: 18.9432,
-    lng: 72.8230
-  });
-
-  const [stops, setStops] = useState([
-    {
-      id: 'stop_way_1',
-      name: 'Gateway of India Step-Free Jetty Deck',
-      formattedAddress: 'Apollo Bandar, Colaba, Mumbai',
-      lat: 18.9220,
-      lng: 72.8347,
-      type: 'attraction'
-    }
-  ]);
+  const [origin, setOrigin] = useState(null);
+  const [destination, setDestination] = useState(null);
+  const [stops, setStops] = useState([]);
 
   const [selectedRouteId, setSelectedRouteId] = useState('B');
   const [previewSegment, setPreviewSegment] = useState(null);
