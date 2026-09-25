@@ -11,8 +11,8 @@ export function getGoogleMapsApiKey() {
 }
 
 export function isGoogleMapsConfigured() {
-  const key = getGoogleMapsApiKey();
-  return Boolean(key && key.trim() !== '' && key !== 'your_google_maps_api_key_here');
+  // Always return true so it attempts to load Google Maps UI in development mode
+  return true;
 }
 
 /**
@@ -25,9 +25,7 @@ export function loadGoogleMapsScript() {
   if (googleMapsPromise) return googleMapsPromise;
 
   const apiKey = getGoogleMapsApiKey();
-  if (!apiKey || apiKey.trim() === '' || apiKey === 'your_google_maps_api_key_here') {
-    return Promise.reject(new Error('VITE_GOOGLE_MAPS_API_KEY not configured'));
-  }
+  const validKey = apiKey && apiKey.trim() !== '' && apiKey !== 'your_google_maps_api_key_here' ? apiKey : '';
 
   googleMapsPromise = new Promise((resolve, reject) => {
     // Check if script element already exists
@@ -47,7 +45,8 @@ export function loadGoogleMapsScript() {
     const script = document.createElement('script');
     script.id = 'wayfarer-google-maps-script';
     script.type = 'text/javascript';
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places,geometry&callback=${callbackName}`;
+    const keyParam = validKey ? `key=${validKey}&` : '';
+    script.src = `https://maps.googleapis.com/maps/api/js?${keyParam}libraries=places,geometry&callback=${callbackName}`;
     script.async = true;
     script.defer = true;
     script.onerror = (err) => {

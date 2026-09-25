@@ -51,18 +51,24 @@ export default function GoogleMap({
     };
   }, []);
 
-  // Request browser geolocation if requested
+  // Request browser geolocation if requested for real-time tracking
   useEffect(() => {
     if (showCurrentLocation && navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
+      const watchId = navigator.geolocation.watchPosition(
         (pos) => {
           setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+          setLocationError(false);
         },
-        () => {
+        (err) => {
+          console.warn('[GoogleMap] Real-time tracking error:', err);
           setLocationError(true);
         },
-        { timeout: 5000 }
+        { enableHighAccuracy: true, maximumAge: 10000, timeout: 5000 }
       );
+
+      return () => {
+        navigator.geolocation.clearWatch(watchId);
+      };
     }
   }, [showCurrentLocation]);
 
