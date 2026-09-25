@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { JourneyProvider } from './context/JourneyContext.jsx';
 import Navbar from './components/Navbar.jsx';
+import WelcomeModal from './components/common/WelcomeModal.jsx';
 
 import LandingPageView from './pages/LandingPageView.jsx';
 import ProfilePageView from './pages/ProfilePageView.jsx';
@@ -20,6 +21,9 @@ export default function App() {
           
           {/* Global Sticky Navbar */}
           <Navbar />
+          
+          {/* Onboarding Overlay */}
+          <WelcomeModal />
 
           {/* Main Route Switcher */}
           <main className="flex-1">

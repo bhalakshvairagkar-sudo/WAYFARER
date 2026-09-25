@@ -91,10 +91,10 @@ export default function LandingPageView() {
             <Accessibility className="w-6 h-6" />
           </div>
           <h3 className="font-extrabold text-base text-slate-900">
-            Continuous Accessibility Optimization
+            Real-Time Accessibility Checking
           </h3>
           <p className="text-xs text-slate-600 leading-relaxed">
-            Calculates verified ramp gradients, step-free corridors, and barrier-free transit. When an elevator or ramp fails, WAYFARER re-ranks alternatives instantaneously.
+            WAYFARER constantly verifies ramp gradients, step-free corridors, and barrier-free transit. When an elevator or ramp fails, we reroute you instantly to a safe alternative.
           </p>
         </div>
 
@@ -103,10 +103,10 @@ export default function LandingPageView() {
             <Activity className="w-6 h-6" />
           </div>
           <h3 className="font-extrabold text-base text-slate-900">
-            Real Downstream Itinerary Cascade
+            Smart Schedule Auto-Adjustments
           </h3>
           <p className="text-xs text-slate-600 leading-relaxed">
-            Delays do not exist in isolation. Our Directed Acyclic Graph (DAG) propagates timing shocks downstream, compresses dwell buffers, and flags closing-hour breaches.
+            Delays happen. Our Smart Schedule Tracker automatically updates all your downstream reservations, compresses buffer times, and warns you if you'll miss a closing time.
           </p>
         </div>
 
@@ -115,10 +115,10 @@ export default function LandingPageView() {
             <ShieldCheck className="w-6 h-6" />
           </div>
           <h3 className="font-extrabold text-base text-slate-900">
-            Transparent 5-Factor Scoring & Math
+            Transparent Safety & Fit Scoring
           </h3>
           <p className="text-xs text-slate-600 leading-relaxed">
-            Zero black-box decisions. Inspect the mathematical arithmetic behind every route recommendation across Safety, Accessibility, Crowd, Convenience, and Cost.
+            No hidden decisions. Every route is scored and ranked based on your exact needs across 5 key areas: Safety, Accessibility, Crowds, Convenience, and Cost.
           </p>
         </div>
       </div>
@@ -127,27 +127,27 @@ export default function LandingPageView() {
       <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-3xl p-8 sm:p-12 text-white shadow-xl relative overflow-hidden">
         <div className="relative z-10 max-w-3xl space-y-4">
           <span className="text-[11px] font-extrabold text-brand-400 uppercase tracking-widest block">
-            THE WAYFARER DECISION LOOP
+            HOW IT WORKS
           </span>
           <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
             How WAYFARER Adapts When the World Changes
           </h2>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4 text-xs font-bold text-center">
             <div className="p-3 bg-white/10 rounded-xl border border-white/10">
-              <span className="text-brand-400 block text-[10px] mb-1">01. INGEST</span>
-              Real Event / Telemetry
+              <span className="text-brand-400 block text-[10px] mb-1">01. DETECT</span>
+              Live Event Alert
             </div>
             <div className="p-3 bg-white/10 rounded-xl border border-white/10">
-              <span className="text-brand-400 block text-[10px] mb-1">02. PROPAGATE</span>
-              Downstream DAG Impact
+              <span className="text-brand-400 block text-[10px] mb-1">02. ADJUST</span>
+              Smart Schedule Sync
             </div>
             <div className="p-3 bg-white/10 rounded-xl border border-white/10">
-              <span className="text-brand-400 block text-[10px] mb-1">03. RE-SCORE</span>
-              5-Factor Evaluation
+              <span className="text-brand-400 block text-[10px] mb-1">03. RE-ROUTE</span>
+              Safety & Fit Scoring
             </div>
             <div className="p-3 bg-white/10 rounded-xl border border-white/10">
               <span className="text-brand-400 block text-[10px] mb-1">04. EXPLAIN</span>
-              AI Why-Not Synthesis
+              Clear Alternatives
             </div>
           </div>
         </div>

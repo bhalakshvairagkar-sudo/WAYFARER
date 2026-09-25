@@ -159,7 +159,7 @@ export default function EventsCenterPageView() {
     {
       id: 'transport',
       title: 'Transport Delay (+50 min)',
-      badge: 'Downstream DAG Cascade',
+      badge: 'Smart Schedule Sync',
       description: 'Shifts subsequent milestone arrival times. Checks venue closing hours and applies dwell compression.',
       icon: Clock,
       borderColor: 'border-amber-300',
@@ -171,7 +171,7 @@ export default function EventsCenterPageView() {
     {
       id: 'cancel',
       title: 'Activity Cancellation',
-      badge: 'Node Substitution',
+      badge: 'Venue Substitution',
       description: 'Target attraction closed. Automatically queries alternative pool and substitutes nearest accessible venue.',
       icon: XCircle,
       borderColor: 'border-red-300',
@@ -207,7 +207,7 @@ export default function EventsCenterPageView() {
     {
       id: 'deviation',
       title: 'Traveler Path Deviation',
-      badge: 'Telemetry Check',
+      badge: 'Safety Check',
       description: 'Traveler turns off designated accessible path. Launches instant "Are You Okay?" verification modal.',
       icon: Navigation,
       borderColor: 'border-brand-300',
@@ -225,13 +225,13 @@ export default function EventsCenterPageView() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-5">
         <div>
           <span className="text-[10px] font-extrabold text-amber-600 uppercase tracking-widest block mb-1">
-            CONTINUOUS RE-OPTIMIZATION TESTBED
+            TESTING / SIMULATION CONSOLE
           </span>
           <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
-            Real-Time Events & Environmental Telemetry
+            Trigger Real-World Disruptions
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 font-medium">
-            Simulate dynamic real-world disruptions. Events are sent to the actual Express backend event engine, triggering Directed Acyclic Graph (DAG) cascades, 5-factor re-scoring, and comparative AI explainability.
+            Simulate real-world disruptions to see how WAYFARER responds. Events are processed instantly, triggering smart schedule auto-corrections, rerouting, and AI-generated explanations.
           </p>
         </div>
 

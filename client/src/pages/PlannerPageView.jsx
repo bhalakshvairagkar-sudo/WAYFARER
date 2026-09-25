@@ -272,6 +272,15 @@ export default function PlannerPageView() {
 
       </div>
 
+      {/* Loading Overlay */}
+      {isLoading && (
+        <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex flex-col items-center justify-center text-white">
+          <Loader2 className="w-12 h-12 text-brand-400 animate-spin mb-4" />
+          <h2 className="text-xl font-bold tracking-tight mb-2">Synthesizing Adaptive Journey...</h2>
+          <p className="text-sm text-slate-300">Checking route accessibility, calculating crowds, and verifying safety corridors.</p>
+        </div>
+      )}
+
     </div>
   );
 }
