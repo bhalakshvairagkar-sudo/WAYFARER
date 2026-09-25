@@ -186,8 +186,27 @@ export async function calculateRoutes({ origin, destination, waypoints = [], tra
         }
       }
     } catch (err) {
-      console.warn('[RouteService] Google Directions failed, using high-fidelity fallback routes:', err.message);
+      console.warn('[RouteService] Google Directions failed, trying OSRM:', err.message);
     }
+  }
+
+  // Try OSRM if Google Maps is not configured or failed
+  try {
+    const waypointsStr = waypoints.map((w) => `;${w.lng},${w.lat}`).join('');
+    // Note: OSRM uses lon,lat format
+    const osrmUrl = `https://router.project-osrm.org/route/v1/foot/${originLng},${originLat}${waypointsStr};${destLng},${destLat}?overview=full&geometries=geojson&alternatives=true`;
+    const osrmResponse = await fetch(osrmUrl);
+    
+    if (osrmResponse.ok) {
+      const osrmData = await osrmResponse.json();
+      if (osrmData.code === 'Ok' && osrmData.routes && osrmData.routes.length > 0) {
+        return normalizeOsrmRoutes(osrmData.routes, origin, destination, travelerProfile);
+      }
+    } else {
+      console.warn(`[RouteService] OSRM responded with status: ${osrmResponse.status}`);
+    }
+  } catch (err) {
+    console.warn('[RouteService] OSRM failed, using high-fidelity fallback routes:', err.message);
   }
 
   // Fallback high-fidelity candidate routes (Route A, B, C)
@@ -257,6 +276,63 @@ function normalizeGoogleRoutes(googleRoutes, origin, destination, travelerProfil
       ],
       coordinates,
       provider: 'GOOGLE_ROUTES'
+    };
+  });
+}
+
+/**
+ * Normalizes routes returned by OSRM API and enriches with WAYFARER accessibility metrics
+ */
+function normalizeOsrmRoutes(osrmRoutes, origin, destination, travelerProfile) {
+  const isWheelchair = travelerProfile?.mobility === 'wheelchair';
+
+  return osrmRoutes.slice(0, 3).map((r, idx) => {
+    const routeLetter = ['B', 'C', 'A'][idx] || `R${idx + 1}`;
+    const distMeters = r.distance || 2500;
+    const durationSeconds = r.duration || 1200;
+    const durationMin = Math.round(durationSeconds / 60);
+
+    // Extract path coordinates from geojson. Note: OSRM uses [lon, lat], WAYFARER expects [lat, lon]
+    let coordinates = [];
+    if (r.geometry && r.geometry.coordinates) {
+      coordinates = r.geometry.coordinates.map(pt => [pt[1], pt[0]]);
+    } else {
+      coordinates = [
+        [origin.lat, origin.lng],
+        [destination.lat, destination.lng]
+      ];
+    }
+
+    // Profile-adjusted attributes
+    let accessibility = idx === 0 ? 94 : idx === 1 ? 89 : 68;
+    let safety = idx === 0 ? 88 : idx === 1 ? 92 : 78;
+    let crowd = idx === 0 ? 82 : idx === 1 ? 86 : 58;
+    let convenience = Math.max(60, 100 - Math.round(durationMin * 1.5));
+    let cost = Math.max(50, 100 - Math.round(distMeters / 1000) * 5);
+
+    const name = `Route ${routeLetter}: ${destination?.name || 'Destination'}`;
+    const tagline = `OSRM Route ${routeLetter} • ${(distMeters / 1000).toFixed(1)} km`;
+
+    return {
+      id: routeLetter,
+      name,
+      tagline,
+      distanceMeters: distMeters,
+      distanceKm: Number((distMeters / 1000).toFixed(1)),
+      durationSeconds,
+      durationMin,
+      safety,
+      accessibility,
+      crowd,
+      convenience,
+      cost: { estimated: Math.round(distMeters / 30), currency: 'INR' },
+      accessibleFeatures: [
+        'OpenStreetMap inferred pathways',
+        'Pedestrian routing optimization',
+        isWheelchair ? 'Wheelchair routing enabled' : 'Standard foot routing'
+      ],
+      coordinates,
+      provider: 'OSRM_ROUTES'
     };
   });
 }

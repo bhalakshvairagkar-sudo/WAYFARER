@@ -52,61 +52,47 @@ export default function PlannerPageView() {
 
   // Update preview segment when origin, destination, or stops change
   useEffect(() => {
-    if (origin && destination) {
-      setPreviewSegment({
-        id: 'S_PREVIEW',
-        origin: origin.name,
-        originLat: origin.lat,
-        originLng: origin.lng,
-        destination: destination.name,
-        destinationLat: destination.lat,
-        destinationLng: destination.lng,
-        candidateRoutes: [
-          {
-            id: 'B',
-            name: `Route B: Continuous Accessible Deck`,
-            score: 91,
-            accessibility: 96,
-            safety: 90,
-            durationMin: 22,
-            isRecommended: true,
-            coordinates: [
-              [origin.lat, origin.lng],
-              [(origin.lat + destination.lat) / 2 + 0.003, (origin.lng + destination.lng) / 2 - 0.002],
-              [destination.lat, destination.lng]
-            ]
-          },
-          {
-            id: 'C',
-            name: `Route C: Low-Density Promenade Bypass`,
-            score: 88,
-            accessibility: 91,
-            safety: 88,
-            durationMin: 26,
-            isRecommended: false,
-            coordinates: [
-              [origin.lat, origin.lng],
-              [(origin.lat + destination.lat) / 2 - 0.004, (origin.lng + destination.lng) / 2 + 0.003],
-              [destination.lat, destination.lng]
-            ]
-          },
-          {
-            id: 'A',
-            name: `Route A: Direct Arterial Commercial Line`,
-            score: 68,
-            accessibility: 52,
-            safety: 82,
-            durationMin: 18,
-            isRecommended: false,
-            coordinates: [
-              [origin.lat, origin.lng],
-              [destination.lat, destination.lng]
-            ]
+    async function loadPreview() {
+      if (origin && destination) {
+        try {
+          const { calculateRoutes } = await import('../services/routeService.js');
+          const routes = await calculateRoutes({
+            origin,
+            destination,
+            waypoints: stops,
+            travelerProfile: journeyState.traveler || {}
+          });
+          
+          const mappedRoutes = routes.map((r, i) => ({
+             ...r,
+             score: Math.round((r.accessibility * 0.4) + (r.safety * 0.3) + (r.convenience * 0.3)), // approximate
+             isRecommended: i === 0,
+          }));
+
+          setPreviewSegment({
+            id: 'S_PREVIEW',
+            origin: origin.name,
+            originLat: origin.lat,
+            originLng: origin.lng,
+            destination: destination.name,
+            destinationLat: destination.lat,
+            destinationLng: destination.lng,
+            candidateRoutes: mappedRoutes
+          });
+
+          if (mappedRoutes.length > 0 && !mappedRoutes.find(mr => mr.id === selectedRouteId)) {
+            setSelectedRouteId(mappedRoutes[0].id);
           }
-        ]
-      });
+        } catch (err) {
+          console.error('[Planner] Preview route calculation failed:', err);
+        }
+      }
     }
-  }, [origin, destination, stops]);
+    
+    // Add a small debounce
+    const timeoutId = setTimeout(loadPreview, 500);
+    return () => clearTimeout(timeoutId);
+  }, [origin, destination, stops, journeyState.traveler]);
 
   const handleAddStop = () => {
     setStops([
