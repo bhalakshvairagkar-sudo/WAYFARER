@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import {
   Compass,
   Navigation,
@@ -11,7 +12,9 @@ import {
   ShieldAlert,
   ChevronRight,
   Info,
-  CheckCircle2
+  CheckCircle2,
+  Menu,
+  Phone
 } from 'lucide-react';
 import { useJourney } from '../context/JourneyContext.jsx';
 import GoogleMap from '../components/common/GoogleMap.jsx';
@@ -37,6 +40,7 @@ export default function LiveJourneyPageView() {
 
   const [isSafetyModalOpen, setIsSafetyModalOpen] = useState(false);
   const [showMatrix, setShowMatrix] = useState(false);
+  const [sheetState, setSheetState] = useState('half');
 
   const segments = journeyState.segments || [];
   const activeSegment = segments.find((s) => s.id === activeSegmentId) || segments[0];
@@ -56,16 +60,62 @@ export default function LiveJourneyPageView() {
     journeyState.eventHistory = [devRecord, ...(journeyState.eventHistory || [])];
   };
 
-  return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+  const dashboardContent = (
+    <div className="space-y-6">
+      <JourneyTimeline 
+        segments={segments}
+        activeSegmentId={activeSegmentId}
+        onSelectSegment={setActiveSegmentId}
+      />
       
-      {/* Top Banner with Action Buttons */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-soft">
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+        <div className="md:col-span-4 space-y-6">
+          <CurrentSegmentCard segment={activeSegment} />
+          
+          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-soft">
+            <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-4 flex items-center gap-2">
+              <Compass className="w-4 h-4 text-brand-600" />
+              Dynamic Score
+            </h3>
+            <div className="flex flex-col items-center">
+              <JourneyScoreGauge score={journeyState.overallScore || 92} />
+              <ScoreBreakdownCard scores={recommendedRoute || {}} />
+            </div>
+          </div>
+          
+          <DownstreamImpactCard impacts={journeyState.downstreamImpacts || []} />
+        </div>
+        
+        <div className="md:col-span-8 space-y-6">
+          {journeyState.events?.length > 0 && (
+            <ExplanationCard event={journeyState.events[0]} />
+          )}
+          
+          {showMatrix && (
+            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
+              <RouteComparisonMatrix 
+                candidateRoutes={candidateRoutes}
+                selectedRouteId={activeSegment?.recommendedRouteId}
+                onSelectRoute={(id) => selectRouteForSegment(activeSegmentId, id)}
+              />
+              <WhyNotCard />
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="relative w-full h-[calc(100vh-64px)] sm:h-auto sm:max-w-7xl sm:mx-auto sm:px-4 sm:py-6 flex flex-col gap-6 pb-20 sm:pb-0">
+      
+      {/* Top Banner (Desktop Only) */}
+      <div className="hidden sm:flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-soft">
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
             <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-widest">
-              PRIMARY TRAVELER INTERFACE
+              LIVE JOURNEY
             </span>
           </div>
           <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
@@ -73,12 +123,8 @@ export default function LiveJourneyPageView() {
             <ChevronRight className="w-5 h-5 text-slate-400" />
             <span className="text-brand-600">{journeyState.trip?.destination || 'Destination'}</span>
           </h1>
-          <p className="text-xs text-slate-500 font-medium">
-            Active Segment: <strong className="text-slate-800">{activeSegment?.origin || 'Start'} → {activeSegment?.destination || 'End'}</strong> • Traveler: <strong className="text-slate-800">{journeyState.traveler?.name || 'Aditi'}</strong> ({journeyState.traveler?.mobility || 'Wheelchair'})
-          </p>
         </div>
 
-        {/* 4 Action Buttons as requested */}
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
@@ -86,131 +132,95 @@ export default function LiveJourneyPageView() {
             className="px-3 py-2 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 transition flex items-center gap-1.5"
           >
             <Info className="w-3.5 h-3.5 text-slate-500" />
-            <span>{showMatrix ? 'Hide Route Details' : 'View Route Details'}</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setIsSafetyModalOpen(true)}
-            className="px-3 py-2 rounded-xl text-xs font-bold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition flex items-center gap-1.5"
-          >
-            <ShieldAlert className="w-3.5 h-3.5 text-rose-600" />
-            <span>Report Change</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => navigate('/events')}
-            className="px-3 py-2 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white transition flex items-center gap-1.5 shadow-sm"
-          >
-            <Zap className="w-3.5 h-3.5" />
-            <span>Open Events</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => navigate('/history')}
-            className="px-3 py-2 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-900 text-white transition flex items-center gap-1.5 shadow-sm"
-          >
-            <History className="w-3.5 h-3.5" />
-            <span>View History</span>
+            <span>{showMatrix ? 'Hide Route Details' : 'View Alternatives'}</span>
           </button>
         </div>
       </div>
 
-      {/* Main Grid: Left Map + Segment, Right Score Gauge + Explanation */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+      {/* Mobile Map Background / Desktop Grid */}
+      <div className="absolute inset-0 sm:relative sm:flex-none sm:h-[400px] z-0 sm:rounded-2xl sm:overflow-hidden sm:shadow-md">
+        <GoogleMap 
+          activeSegment={activeSegment}
+          segments={segments}
+          height="100%"
+        />
         
-        {/* Left: Map + Timeline (7 cols) */}
-        <div className="lg:col-span-7 space-y-6">
-          <GoogleMap
-            activeSegment={activeSegment}
-            segments={segments}
-            selectedRouteId={recommendedRoute?.id}
-            onSelectRoute={(rId) => selectRouteForSegment(activeSegment?.id, rId)}
-            height="460px"
-          />
-
-          <JourneyTimeline
-            stops={journeyState.stops || []}
-            activeSegmentId={activeSegment?.id}
-            downstreamImpact={journeyState.downstreamImpact}
-            segments={segments}
-          />
-
-          {/* Segment Selector tabs */}
-          {segments.length > 1 && (
-            <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-soft">
-              <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider block mb-2">
-                Itinerary Segments:
-              </span>
-              <div className="flex items-center gap-2 overflow-x-auto pb-1">
-                {segments.map((seg) => (
-                  <button
-                    key={seg.id}
-                    type="button"
-                    onClick={() => setActiveSegmentId(seg.id)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition ${
-                      seg.id === activeSegment?.id
-                        ? 'bg-brand-600 text-white shadow-xs'
-                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                    }`}
-                  >
-                    <span>{seg.id}: {seg.destination}</span>
-                    <span className="ml-1.5 text-[10px] opacity-80">{seg.journeyScore}★</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {showMatrix && (
-            <RouteComparisonMatrix
-              candidateRoutes={candidateRoutes}
-              activeSegmentName={`${activeSegment?.origin} → ${activeSegment?.destination}`}
-              weights={journeyState.weights}
-            />
-          )}
+        {/* Mobile Top Pill Bar Overlay */}
+        <div className="sm:hidden absolute top-4 inset-x-4 z-10 flex gap-2 overflow-x-auto pb-2 snap-x">
+          {segments.map((seg, idx) => (
+            <button
+              key={seg.id}
+              onClick={() => setActiveSegmentId(seg.id)}
+              className={`snap-center shrink-0 px-4 py-2 rounded-full shadow-md text-xs font-bold transition whitespace-nowrap flex items-center gap-2 ${seg.id === activeSegmentId ? 'bg-brand-600 text-white' : 'bg-white/90 backdrop-blur-md text-slate-700 border border-slate-200'}`}
+            >
+              {seg.status === 'COMPLETED' ? <CheckCircle2 className="w-3.5 h-3.5" /> : idx === 0 ? <MapPin className="w-3.5 h-3.5" /> : <Clock className="w-3.5 h-3.5" />}
+              {seg.origin.split(',')[0]} → {seg.destination.split(',')[0]}
+            </button>
+          ))}
         </div>
-
-        {/* Right: Scores & Reasonings (5 cols) */}
-        <div className="lg:col-span-5 space-y-6">
-          <JourneyScoreGauge
-            score={journeyState.overallScore || recommendedRoute?.score || 88}
-            fitLevel={journeyState.fitLevel || 'EXCELLENT FIT'}
-            weights={journeyState.weights}
-          />
-
-          <ScoreBreakdownCard
-            scoreBreakdown={journeyState.scoreBreakdown}
-            weights={journeyState.weights}
-          />
-
-          <WhyNotCard
-            whyNotData={journeyState.whyNotData}
-          />
-
-          <CurrentSegmentCard
-            activeSegment={activeSegment}
-          />
-
-          <ExplanationCard
-            explanation={journeyState.explanation}
-            explanationSource={journeyState.explanationSource}
-            explanationBadge={journeyState.explanationBadge}
-          />
-
-          <DownstreamImpactCard
-            downstreamImpact={journeyState.downstreamImpact}
-          />
-        </div>
-
       </div>
 
-      {/* Safety Deviation Modal */}
-      <SafetyVerificationModal
-        isOpen={isSafetyModalOpen}
-        onClose={() => setIsSafetyModalOpen(false)}
+      {/* Floating Action Button for Mobile */}
+      <div className="sm:hidden fixed bottom-24 right-4 z-50">
+        <button
+          onClick={() => setIsSafetyModalOpen(true)}
+          className="w-14 h-14 rounded-full bg-rose-600 text-white shadow-lg shadow-rose-600/30 flex items-center justify-center hover:scale-105 transition-transform"
+        >
+          <ShieldAlert className="w-6 h-6" />
+        </button>
+      </div>
+
+      {/* Mobile Bottom Sheet */}
+      <div className="sm:hidden absolute inset-x-0 bottom-[60px] z-40 pointer-events-none">
+        <motion.div 
+          className="bg-slate-50 rounded-t-3xl shadow-[0_-10px_40px_rgba(0,0,0,0.15)] pointer-events-auto border-t border-slate-200"
+          initial="half"
+          animate={sheetState}
+          variants={{
+            collapsed: { y: "calc(100% - 70px)" },
+            half: { y: "40%" },
+            full: { y: "0%" }
+          }}
+          transition={{ type: "spring", damping: 25, stiffness: 200 }}
+          drag="y"
+          dragConstraints={{ top: 0, bottom: 0 }}
+          dragElastic={0.2}
+          onDragEnd={(e, { offset, velocity }) => {
+            const swipe = offset.y;
+            if (swipe < -50) setSheetState('full');
+            else if (swipe > 50 && sheetState === 'full') setSheetState('half');
+            else if (swipe > 50 && sheetState === 'half') setSheetState('collapsed');
+          }}
+        >
+          {/* Drag Handle */}
+          <div className="w-full flex justify-center pt-3 pb-2 cursor-grab active:cursor-grabbing" onClick={() => setSheetState(sheetState === 'collapsed' ? 'half' : sheetState === 'half' ? 'full' : 'collapsed')}>
+            <div className="w-12 h-1.5 bg-slate-300 rounded-full" />
+          </div>
+          
+          <div className="px-4 pb-8 overflow-y-auto h-[70vh]">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="font-black text-lg text-slate-900">Journey Details</h2>
+              <button
+                type="button"
+                onClick={() => setShowMatrix(!showMatrix)}
+                className="px-3 py-1.5 rounded-full text-[10px] font-bold bg-brand-100 text-brand-700 uppercase tracking-wider"
+              >
+                {showMatrix ? 'Hide Alts' : 'Alternatives'}
+              </button>
+            </div>
+            {dashboardContent}
+          </div>
+        </motion.div>
+      </div>
+
+      {/* Desktop Dashboard */}
+      <div className="hidden sm:block z-10">
+        {dashboardContent}
+      </div>
+
+      <SafetyVerificationModal 
+        isOpen={isSafetyModalOpen} 
+        onClose={() => setIsSafetyModalOpen(false)} 
         onVerifiedFine={handleVerifiedFine}
         travelerName={journeyState.traveler?.name}
         segmentName={`${activeSegment?.origin} → ${activeSegment?.destination}`}

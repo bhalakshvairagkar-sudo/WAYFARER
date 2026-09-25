@@ -1,155 +1,143 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
-import {
-  Compass,
-  ArrowRight,
-  ShieldCheck,
-  Accessibility,
-  Activity,
-  Layers,
-  Sparkles,
-  Zap,
-  MapPin,
-  Clock,
-  CheckCircle,
-  HelpCircle,
-  Play
-} from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Search, Mic, Compass, Navigation, History, ShieldCheck, MapPin } from 'lucide-react';
 import { useJourney } from '../context/JourneyContext.jsx';
 
 export default function LandingPageView() {
-  const { journeyState, resetToBaseline } = useJourney();
+  const { journeyState } = useJourney();
+  const navigate = useNavigate();
+
+  // If there's an active route, we can show it in 'Next Journey'
+  const activeSegment = journeyState.journey.segments.find((s) => s.status === 'ACTIVE') || journeyState.journey.segments[0];
+  const activeScore = activeSegment ? Math.round((activeSegment.candidateRoutes.find(r => r.id === activeSegment.recommendedRouteId)?.compositeScore || 90) * 100) : 92;
+
+  const handleMicClick = (e) => {
+    e.preventDefault();
+    navigate('/planner', { state: { autoVoice: true } });
+  };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-16 space-y-16">
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
       
-      {/* Hero Section */}
-      <div className="text-center max-w-3xl mx-auto space-y-6">
-        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-brand-50 border border-brand-200 text-brand-800 text-xs font-extrabold uppercase tracking-wider shadow-2xs">
-          <Sparkles className="w-3.5 h-3.5 text-brand-600 animate-pulse" />
-          Next-Gen Adaptive Journey Intelligence
-        </div>
-
-        <h1 className="text-4xl sm:text-6xl font-black text-slate-900 tracking-tight leading-tight">
-          A route is only optimal{' '}
-          <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-600 to-indigo-600">
-            until something changes.
-          </span>
+      {/* Greeting */}
+      <div className="space-y-1">
+        <h1 className="text-3xl font-black text-slate-900 tracking-tight">
+          Good morning, {journeyState.traveler.name || 'Traveler'} <span className="text-2xl animate-wave inline-block origin-[70%_70%]">👋</span>
         </h1>
+        <p className="text-slate-500 font-medium">Where are you going?</p>
+      </div>
 
-        <p className="text-base sm:text-lg text-slate-600 font-medium leading-relaxed">
-          WAYFARER continuously monitors environmental events, infrastructure accessibility, transit delays, and safety hazards — dynamically re-optimizing downstream itinerary dependencies in real time.
-        </p>
-
-        {/* CTA Buttons */}
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-2">
-          <Link
-            to="/profile"
-            className="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-sm transition shadow-lg shadow-brand-600/25 flex items-center justify-center gap-2 group"
-          >
-            <span>Plan My Journey</span>
-            <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition" />
-          </Link>
-
-          <Link
-            to="/planner"
-            className="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-white hover:bg-slate-50 text-slate-800 font-bold text-sm transition border border-slate-300 shadow-sm flex items-center justify-center gap-2"
-          >
-            <Play className="w-4 h-4 text-brand-600 fill-brand-600" />
-            <span>Explore Live Planner</span>
-          </Link>
+      {/* Global Search Bar */}
+      <div className="relative group">
+        <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
+          <Search className="h-5 w-5 text-slate-400 group-focus-within:text-brand-500 transition-colors" />
         </div>
+        <input
+          type="text"
+          className="block w-full pl-12 pr-14 py-4 bg-white border border-slate-200 rounded-2xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 shadow-sm transition-all text-base font-medium"
+          placeholder="Search destination..."
+          onClick={() => navigate('/planner')}
+        />
+        <button 
+          onClick={handleMicClick}
+          className="absolute inset-y-0 right-2 flex items-center px-3 text-slate-400 hover:text-brand-600 transition-colors"
+        >
+          <Mic className="h-5 w-5" />
+        </button>
+      </div>
 
-        {/* Quick Jump Bar */}
-        <div className="pt-4 flex flex-wrap items-center justify-center gap-2 text-xs text-slate-500 font-semibold">
-          <span>Jump to:</span>
-          <Link to="/profile" className="px-2.5 py-1 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 transition">
-            Traveler Profile
+      {/* Next Journey Card */}
+      <div className="space-y-3">
+        <h2 className="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest pl-1">
+          YOUR NEXT JOURNEY
+        </h2>
+        <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-3xl p-1 shadow-xl relative overflow-hidden group">
+          <div className="absolute top-0 right-0 p-3 opacity-20 pointer-events-none">
+            <Compass className="w-32 h-32 transform translate-x-8 -translate-y-8" />
+          </div>
+          
+          <div className="bg-white/5 backdrop-blur-sm rounded-[22px] p-5 sm:p-6 border border-white/10 relative z-10 flex flex-col gap-4">
+            <div className="flex justify-between items-start">
+              <div>
+                <h3 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2">
+                  {activeSegment ? `${activeSegment.origin} → ${activeSegment.destination}` : 'Mumbai → Goa'}
+                </h3>
+                <p className="text-brand-300 text-sm font-medium mt-1">Today • {activeSegment?.originId === 'stop-1' ? '9:30 AM' : 'In Progress'}</p>
+              </div>
+              <div className="bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 px-2.5 py-1 rounded-lg text-xs font-bold flex flex-col items-center leading-none">
+                <span className="text-[10px] uppercase opacity-80 mb-0.5">Score</span>
+                <span className="text-lg">{activeScore}</span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-4 text-sm text-slate-300 font-medium">
+              <span className="flex items-center gap-1.5"><MapPin className="w-4 h-4 text-slate-400" /> {journeyState.journey.segments.length + 1} stops</span>
+              <span className="flex items-center gap-1.5"><ShieldCheck className="w-4 h-4 text-slate-400" /> Monitored</span>
+            </div>
+
+            <Link
+              to="/journey/active"
+              className="mt-2 w-full py-3.5 rounded-xl bg-brand-500 hover:bg-brand-400 text-white font-extrabold text-sm transition flex items-center justify-center gap-2 shadow-lg shadow-brand-500/25 group-hover:bg-brand-400"
+            >
+              <span>CONTINUE JOURNEY</span>
+              <Navigation className="w-4 h-4" />
+            </Link>
+          </div>
+        </div>
+      </div>
+
+      {/* Quick Actions */}
+      <div className="space-y-3">
+        <h2 className="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest pl-1">
+          QUICK ACTIONS
+        </h2>
+        <div className="grid grid-cols-2 gap-3 sm:gap-4">
+          <Link to="/planner" className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col items-center justify-center gap-2 hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700 transition-colors shadow-sm group text-slate-700">
+            <div className="w-10 h-10 rounded-full bg-slate-50 group-hover:bg-brand-100 flex items-center justify-center transition-colors">
+              <Compass className="w-5 h-5 text-slate-600 group-hover:text-brand-600" />
+            </div>
+            <span className="font-bold text-sm">Plan Trip</span>
           </Link>
-          <Link to="/planner" className="px-2.5 py-1 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 transition">
-            Journey Planner
-          </Link>
-          <Link to="/journey/active" className="px-2.5 py-1 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 transition">
-            Live Journey
-          </Link>
-          <Link to="/events" className="px-2.5 py-1 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 transition">
-            Events Center
-          </Link>
-          <Link to="/operator" className="px-2.5 py-1 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 transition">
-            Operator Dashboard
-          </Link>
-          <Link to="/history" className="px-2.5 py-1 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 transition">
-            Decision History
+          
+          <Link to="/events" className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col items-center justify-center gap-2 hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700 transition-colors shadow-sm group text-slate-700">
+            <div className="w-10 h-10 rounded-full bg-slate-50 group-hover:bg-brand-100 flex items-center justify-center transition-colors">
+              <History className="w-5 h-5 text-slate-600 group-hover:text-brand-600" />
+            </div>
+            <span className="font-bold text-sm">Explore</span>
           </Link>
         </div>
       </div>
 
-      {/* 3 Core Pillars */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-soft space-y-3">
-          <div className="w-12 h-12 rounded-xl bg-brand-50 border border-brand-200 text-brand-600 flex items-center justify-center">
-            <Accessibility className="w-6 h-6" />
-          </div>
-          <h3 className="font-extrabold text-base text-slate-900">
-            Real-Time Accessibility Checking
-          </h3>
-          <p className="text-xs text-slate-600 leading-relaxed">
-            WAYFARER constantly verifies ramp gradients, step-free corridors, and barrier-free transit. When an elevator or ramp fails, we reroute you instantly to a safe alternative.
-          </p>
-        </div>
-
-        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-soft space-y-3">
-          <div className="w-12 h-12 rounded-xl bg-amber-50 border border-amber-200 text-amber-600 flex items-center justify-center">
-            <Activity className="w-6 h-6" />
-          </div>
-          <h3 className="font-extrabold text-base text-slate-900">
-            Smart Schedule Auto-Adjustments
-          </h3>
-          <p className="text-xs text-slate-600 leading-relaxed">
-            Delays happen. Our Smart Schedule Tracker automatically updates all your downstream reservations, compresses buffer times, and warns you if you'll miss a closing time.
-          </p>
-        </div>
-
-        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-soft space-y-3">
-          <div className="w-12 h-12 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-600 flex items-center justify-center">
-            <ShieldCheck className="w-6 h-6" />
-          </div>
-          <h3 className="font-extrabold text-base text-slate-900">
-            Transparent Safety & Fit Scoring
-          </h3>
-          <p className="text-xs text-slate-600 leading-relaxed">
-            No hidden decisions. Every route is scored and ranked based on your exact needs across 5 key areas: Safety, Accessibility, Crowds, Convenience, and Cost.
-          </p>
-        </div>
-      </div>
-
-      {/* Interactive Architecture Flow Diagram */}
-      <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-3xl p-8 sm:p-12 text-white shadow-xl relative overflow-hidden">
-        <div className="relative z-10 max-w-3xl space-y-4">
-          <span className="text-[11px] font-extrabold text-brand-400 uppercase tracking-widest block">
-            HOW IT WORKS
-          </span>
-          <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-            How WAYFARER Adapts When the World Changes
-          </h2>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4 text-xs font-bold text-center">
-            <div className="p-3 bg-white/10 rounded-xl border border-white/10">
-              <span className="text-brand-400 block text-[10px] mb-1">01. DETECT</span>
-              Live Event Alert
+      {/* Recent Trips */}
+      <div className="space-y-3 pb-4">
+        <h2 className="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest pl-1">
+          RECENT
+        </h2>
+        <div className="bg-white border border-slate-200 rounded-2xl divide-y divide-slate-100 overflow-hidden shadow-sm">
+          <Link to="/history" className="flex items-center justify-between p-4 hover:bg-slate-50 transition-colors">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500">
+                <MapPin className="w-4 h-4" />
+              </div>
+              <div>
+                <p className="font-bold text-slate-900 text-sm">Mumbai → Goa</p>
+                <p className="text-xs text-slate-500 font-medium">Completed • Score 94</p>
+              </div>
             </div>
-            <div className="p-3 bg-white/10 rounded-xl border border-white/10">
-              <span className="text-brand-400 block text-[10px] mb-1">02. ADJUST</span>
-              Smart Schedule Sync
+            <span className="text-slate-300">›</span>
+          </Link>
+          <Link to="/history" className="flex items-center justify-between p-4 hover:bg-slate-50 transition-colors">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500">
+                <MapPin className="w-4 h-4" />
+              </div>
+              <div>
+                <p className="font-bold text-slate-900 text-sm">Pune → Mumbai</p>
+                <p className="text-xs text-slate-500 font-medium">Last Week • Score 88</p>
+              </div>
             </div>
-            <div className="p-3 bg-white/10 rounded-xl border border-white/10">
-              <span className="text-brand-400 block text-[10px] mb-1">03. RE-ROUTE</span>
-              Safety & Fit Scoring
-            </div>
-            <div className="p-3 bg-white/10 rounded-xl border border-white/10">
-              <span className="text-brand-400 block text-[10px] mb-1">04. EXPLAIN</span>
-              Clear Alternatives
-            </div>
-          </div>
+            <span className="text-slate-300">›</span>
+          </Link>
         </div>
       </div>
 

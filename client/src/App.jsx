@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { JourneyProvider } from './context/JourneyContext.jsx';
 import Navbar from './components/Navbar.jsx';
+import MobileBottomNav from './components/common/MobileBottomNav.jsx';
 import WelcomeModal from './components/common/WelcomeModal.jsx';
 
 import LandingPageView from './pages/LandingPageView.jsx';
@@ -17,7 +18,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <JourneyProvider>
-        <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-900 selection:bg-brand-500 selection:text-white">
+        <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-900 selection:bg-brand-500 selection:text-white pb-16 sm:pb-0">
           
           {/* Global Sticky Navbar */}
           <Navbar />
@@ -26,7 +27,7 @@ export default function App() {
           <WelcomeModal />
 
           {/* Main Route Switcher */}
-          <main className="flex-1">
+          <main className="flex-1 overflow-x-hidden relative">
             <Routes>
               <Route path="/" element={<LandingPageView />} />
               <Route path="/profile" element={<ProfilePageView />} />
@@ -40,8 +41,11 @@ export default function App() {
             </Routes>
           </main>
 
+          {/* Mobile Tab Bar */}
+          <MobileBottomNav />
+
           {/* Global Professional Footer */}
-          <footer className="border-t border-slate-200 bg-white py-6 text-xs text-slate-500 font-medium">
+          <footer className="hidden sm:block border-t border-slate-200 bg-white py-6 text-xs text-slate-500 font-medium">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <span className="font-bold text-slate-800">WAYFARER AI</span>

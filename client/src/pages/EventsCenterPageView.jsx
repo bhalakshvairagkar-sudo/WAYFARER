@@ -1,9 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Zap,
-  Clock,
-  Users,
+  Bell,
   AlertTriangle,
   XCircle,
   Navigation,
@@ -11,8 +9,11 @@ import {
   ShieldCheck,
   RotateCcw,
   Loader2,
+  Users,
+  CheckCircle2,
   Activity,
-  CheckCircle2
+  Zap,
+  Clock
 } from 'lucide-react';
 import { useJourney } from '../context/JourneyContext.jsx';
 import SafetyVerificationModal from '../components/dashboard/SafetyVerificationModal.jsx';
@@ -33,305 +34,188 @@ export default function EventsCenterPageView() {
   const segments = journeyState.segments || [];
   const activeSegment = segments.find((s) => s.id === activeSegmentId) || segments[0];
 
-  // 1. Hero Event: Elevator Failure
-  const handleElevatorFailure = async () => {
-    setActiveSimulationId('elevator');
+  const handleSimulateEvent = async (id, payload) => {
+    setActiveSimulationId(id);
     try {
-      const seg = activeSegment || segments[0];
-      const recRoute = seg?.candidateRoutes?.find((r) => r.isRecommended);
-      await triggerEvent({
-        type: 'ACCESSIBILITY_DEGRADATION',
-        segmentId: seg?.id || 'S1',
-        routeId: recRoute?.id || 'B',
-        severity: 1.0,
-        reason: `Elevator and lift mechanism out of service at ${seg?.destination || 'milestone'} lower rampway entrance`,
-        delta: { accessibility: 58 }
-      });
+      await triggerEvent(payload);
       navigate('/recovery/active');
     } catch (e) {
       console.error(e);
     } finally {
       setActiveSimulationId(null);
     }
-  };
-
-  // 2. Transport Delay (+50 min)
-  const handleTransportDelay = async () => {
-    setActiveSimulationId('transport');
-    try {
-      const seg = activeSegment || segments[0];
-      await triggerEvent({
-        type: 'TRANSPORT_DELAY',
-        segmentId: seg?.id || 'S1',
-        delayMinutes: 50,
-        reason: `Transit vehicle mechanical breakdown en route to ${seg?.destination || 'destination'} (+50 min delay)`
-      });
-      navigate('/recovery/active');
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setActiveSimulationId(null);
-    }
-  };
-
-  // 3. Activity Cancellation (Market / Landmark)
-  const handleActivityCancellation = async () => {
-    setActiveSimulationId('cancel');
-    try {
-      const stops = journeyState.stops || [];
-      const cancelStop = stops.find((s) => s.type === 'experience' || s.type === 'attraction') || stops[stops.length - 2] || stops[0];
-      const seg = segments.find((s) => s.destinationId === cancelStop?.id) || activeSegment || segments[0];
-
-      await triggerEvent({
-        type: 'ACTIVITY_CANCELLATION',
-        nodeId: cancelStop?.id,
-        segmentId: seg?.id,
-        reason: `${cancelStop?.name || 'Venue'} temporarily closed for emergency civil maintenance`
-      });
-      navigate('/recovery/active');
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setActiveSimulationId(null);
-    }
-  };
-
-  // 4. Crowd Spike
-  const handleCrowdSpike = async () => {
-    setActiveSimulationId('crowd');
-    try {
-      const seg = activeSegment || segments[0];
-      await triggerEvent({
-        type: 'CROWD_SPIKE',
-        segmentId: seg?.id || 'S1',
-        routeId: seg?.candidateRoutes?.[0]?.id || 'A',
-        severity: 0.9,
-        reason: `Severe bottleneck surge and pedestrian density exceeding 4.2 persons/m² at ${seg?.destination || 'corridor'}`,
-        delta: { crowd: 45 }
-      });
-      navigate('/recovery/active');
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setActiveSimulationId(null);
-    }
-  };
-
-  // 5. Safety Alert
-  const handleSafetyAlert = async () => {
-    setActiveSimulationId('safety');
-    try {
-      const seg = activeSegment || segments[0];
-      await triggerEvent({
-        type: 'SAFETY_ALERT',
-        segmentId: seg?.id || 'S1',
-        routeId: 'A',
-        severity: 0.8,
-        reason: `Municipal construction hazard and unmonitored sidewalk excavation along ${seg?.origin || 'corridor'}`,
-        delta: { safety: 40 }
-      });
-      navigate('/recovery/active');
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setActiveSimulationId(null);
-    }
-  };
-
-  // 6. Route Deviation
-  const handleRouteDeviation = () => {
-    setIsSafetyModalOpen(true);
   };
 
   const simulationEvents = [
     {
       id: 'elevator',
-      title: 'Elevator Failure',
-      badge: 'Hero Accessibility Demo',
-      description: 'Cuts Route B accessibility score by 58 points. Triggers real-time re-ranking promoting Route C.',
-      icon: Zap,
-      borderColor: 'border-rose-300',
-      bgColor: 'bg-rose-50/70 hover:bg-rose-100/90',
-      textColor: 'text-rose-950',
-      badgeStyle: 'bg-rose-200 text-rose-900',
-      action: handleElevatorFailure
-    },
-    {
-      id: 'transport',
-      title: 'Transport Delay (+50 min)',
-      badge: 'Smart Schedule Sync',
-      description: 'Shifts subsequent milestone arrival times. Checks venue closing hours and applies dwell compression.',
-      icon: Clock,
-      borderColor: 'border-amber-300',
-      bgColor: 'bg-amber-50/70 hover:bg-amber-100/90',
-      textColor: 'text-amber-950',
-      badgeStyle: 'bg-amber-200 text-amber-900',
-      action: handleTransportDelay
-    },
-    {
-      id: 'cancel',
-      title: 'Activity Cancellation',
-      badge: 'Venue Substitution',
-      description: 'Target attraction closed. Automatically queries alternative pool and substitutes nearest accessible venue.',
+      title: 'Elevator Outage',
+      description: 'Simulates a critical accessibility failure at the next transit hub.',
       icon: XCircle,
-      borderColor: 'border-red-300',
-      bgColor: 'bg-red-50/70 hover:bg-red-100/90',
-      textColor: 'text-red-950',
-      badgeStyle: 'bg-red-200 text-red-900',
-      action: handleActivityCancellation
+      action: () => handleSimulateEvent('elevator', {
+        type: 'ACCESSIBILITY_DEGRADATION',
+        segmentId: activeSegment?.id || 'S1',
+        severity: 1.0,
+        reason: 'Elevator out of service at destination',
+        delta: { accessibility: 50 }
+      })
     },
     {
       id: 'crowd',
-      title: 'Crowd Spike',
-      badge: 'Stress Mitigation',
-      description: 'Heavy pedestrian bottleneck reported. Re-ranks toward low-density scenic corridors to ensure low stress.',
+      title: 'Sudden Congestion',
+      description: 'Simulates a massive influx of people at the destination.',
       icon: Users,
-      borderColor: 'border-orange-300',
-      bgColor: 'bg-orange-50/70 hover:bg-orange-100/90',
-      textColor: 'text-orange-950',
-      badgeStyle: 'bg-orange-200 text-orange-900',
-      action: handleCrowdSpike
-    },
-    {
-      id: 'safety',
-      title: 'Safety Hazard Alert',
-      badge: 'Corridor Security',
-      description: 'Unmonitored construction hazard detected. Penalizes poorly-lit arterial routes and routes around safe zones.',
-      icon: AlertTriangle,
-      borderColor: 'border-yellow-300',
-      bgColor: 'bg-yellow-50/70 hover:bg-yellow-100/90',
-      textColor: 'text-yellow-950',
-      badgeStyle: 'bg-yellow-200 text-yellow-900',
-      action: handleSafetyAlert
-    },
-    {
-      id: 'deviation',
-      title: 'Traveler Path Deviation',
-      badge: 'Safety Check',
-      description: 'Traveler turns off designated accessible path. Launches instant "Are You Okay?" verification modal.',
-      icon: Navigation,
-      borderColor: 'border-brand-300',
-      bgColor: 'bg-brand-50/70 hover:bg-brand-100/90',
-      textColor: 'text-brand-950',
-      badgeStyle: 'bg-brand-200 text-brand-900',
-      action: handleRouteDeviation
+      action: () => handleSimulateEvent('crowd', {
+        type: 'CROWD_SURGE',
+        segmentId: activeSegment?.id || 'S1',
+        severity: 0.8,
+        reason: 'Unexpected high density crowding at destination',
+        delta: { crowds: 40 }
+      })
     }
   ];
 
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-24">
       
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-5">
         <div>
-          <span className="text-[10px] font-extrabold text-amber-600 uppercase tracking-widest block mb-1">
-            TESTING / SIMULATION CONSOLE
-          </span>
-          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
-            Trigger Real-World Disruptions
+          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+            <Bell className="w-6 h-6 text-brand-600" />
+            Alerts
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 font-medium">
-            Simulate real-world disruptions to see how WAYFARER responds. Events are processed instantly, triggering smart schedule auto-corrections, rerouting, and AI-generated explanations.
+            Active journey monitoring, real-world disruptions, and adaptations.
           </p>
         </div>
 
         <button
           type="button"
           onClick={resetToBaseline}
-          className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs transition flex items-center gap-2 self-start sm:self-auto shadow-md"
+          className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition flex items-center gap-2 self-start sm:self-auto"
         >
           <RotateCcw className="w-3.5 h-3.5" />
-          <span>Reset All Events</span>
+          <span>Reset Journey</span>
         </button>
       </div>
 
-      {/* Active Journey Snapshot Card */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-soft flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-widest">
-              MONITORED JOURNEY STATE
-            </span>
-          </div>
-          <h3 className="font-extrabold text-base text-slate-900">
-            {journeyState.trip?.origin} → {journeyState.trip?.destination}
-          </h3>
-          <p className="text-xs text-slate-500 font-medium">
-            Current Active Segment: <strong className="text-slate-800">{activeSegment?.origin} → {activeSegment?.destination}</strong> • Score: <strong className="text-emerald-700">{journeyState.overallScore}/100</strong>
-          </p>
-        </div>
+      {/* Alerts Log */}
+      <div className="space-y-4">
+        <h2 className="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest pl-1">
+          LATEST NOTIFICATIONS
+        </h2>
 
-        <div className="flex items-center gap-3">
-          <span className="text-[11px] font-bold px-3 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200 uppercase tracking-wider">
-            SIMULATED TELEMETRY FEEDS
-          </span>
-        </div>
-      </div>
-
-      {/* 6 Event Simulation Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {simulationEvents.map((evt) => {
-          const Icon = evt.icon;
-          const isTriggering = activeSimulationId === evt.id || (isLoading && activeSimulationId === evt.id);
-
-          return (
-            <div
-              key={evt.id}
-              className={`p-5 rounded-2xl border ${evt.borderColor} ${evt.bgColor} shadow-soft flex flex-col justify-between transition group relative overflow-hidden`}
-            >
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <span className={`text-xs font-black px-2 py-0.5 rounded-full ${evt.badgeStyle}`}>
-                    {evt.badge}
-                  </span>
-                  <span className="text-[9px] font-extrabold uppercase tracking-wider text-slate-500 bg-white/70 px-2 py-0.5 rounded border border-slate-200">
-                    SIMULATED EVENT
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="w-8 h-8 rounded-lg bg-white/90 flex items-center justify-center shadow-xs">
-                    <Icon className="w-4 h-4 text-slate-800 group-hover:scale-110 transition" />
-                  </div>
-                  <h4 className={`font-black text-sm ${evt.textColor}`}>
-                    {evt.title}
-                  </h4>
-                </div>
-
-                <p className="text-xs text-slate-700 font-medium leading-relaxed mb-4">
-                  {evt.description}
-                </p>
-              </div>
-
-              <button
-                type="button"
-                disabled={isLoading}
-                onClick={evt.action}
-                className="w-full py-2.5 rounded-xl bg-slate-900 hover:bg-black text-white font-extrabold text-xs transition flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
-              >
-                {isTriggering ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Zap className="w-3.5 h-3.5 text-amber-400" />
-                )}
-                <span>Simulate & Trigger Backend Re-Score</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </button>
+        {/* Action Required */}
+        {journeyState.events?.length > 0 && (
+          <div className="bg-red-50 border border-red-200 rounded-2xl p-4 sm:p-5 shadow-sm relative overflow-hidden group">
+            <div className="absolute top-0 right-0 p-3 opacity-10 pointer-events-none">
+              <AlertTriangle className="w-24 h-24 transform translate-x-4 -translate-y-4 text-red-600" />
             </div>
-          );
-        })}
+            
+            <div className="relative z-10 flex gap-4">
+              <div className="w-10 h-10 shrink-0 rounded-full bg-red-100 flex items-center justify-center text-red-600">
+                <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse" />
+              </div>
+              <div className="flex-1 space-y-3">
+                <div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-red-600 uppercase tracking-wider">🔴 NOW</span>
+                  </div>
+                  <h3 className="text-base font-bold text-red-950 leading-tight mt-1">Journey Adaptation Required</h3>
+                  <p className="text-sm text-red-800 font-medium mt-1">
+                    {journeyState.events[journeyState.events.length - 1].reason}
+                  </p>
+                </div>
+                
+                <button 
+                  onClick={() => navigate('/recovery/active')}
+                  className="w-full sm:w-auto px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-xl transition shadow-sm"
+                >
+                  REVIEW ALTERNATIVES
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Warning Example */}
+        <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 flex gap-4 hover:bg-slate-50 transition-colors">
+          <div className="w-10 h-10 shrink-0 rounded-full bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-500">
+            <Users className="w-5 h-5" />
+          </div>
+          <div className="flex-1">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">🟡 10 MIN AGO</span>
+            <h3 className="text-sm font-bold text-slate-900 leading-tight mt-1">Crowding Increased</h3>
+            <p className="text-xs text-slate-500 font-medium mt-1">
+              WAYFARER is monitoring density at your destination.
+            </p>
+          </div>
+        </div>
+
+        {/* Success Example */}
+        <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 flex gap-4 hover:bg-slate-50 transition-colors">
+          <div className="w-10 h-10 shrink-0 rounded-full bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-500">
+            <CheckCircle2 className="w-5 h-5" />
+          </div>
+          <div className="flex-1">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">🟢 YESTERDAY</span>
+            <h3 className="text-sm font-bold text-slate-900 leading-tight mt-1">Journey Completed</h3>
+            <p className="text-xs text-slate-500 font-medium mt-1">
+              Mumbai → Goa. Arrived safely.
+            </p>
+          </div>
+        </div>
       </div>
 
-      {/* Safety Deviation Modal */}
-      <SafetyVerificationModal
-        isOpen={isSafetyModalOpen}
-        onClose={() => setIsSafetyModalOpen(false)}
-        onVerifiedFine={() => setIsSafetyModalOpen(false)}
-        travelerName={journeyState.traveler?.name}
-        segmentName={`${activeSegment?.origin} → ${activeSegment?.destination}`}
-      />
+      <div className="pt-6 border-t border-slate-200">
+        <h2 className="text-lg font-black text-slate-900 mb-2">Simulate Disruptions</h2>
+        <p className="text-xs text-slate-500 font-medium mb-6">
+          Trigger real-world events below to test how WAYFARER adapts to sudden changes.
+        </p>
 
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {simulationEvents.map((ev) => {
+            const Icon = ev.icon;
+            return (
+              <button
+                key={ev.id}
+                onClick={ev.action}
+                disabled={activeSimulationId === ev.id || isLoading}
+                className="text-left p-5 rounded-2xl border transition group flex flex-col relative overflow-hidden bg-white border-slate-200 shadow-sm hover:shadow-md disabled:opacity-50"
+              >
+                <div className="flex items-start justify-between mb-3">
+                  <div className="p-2 rounded-xl bg-slate-50 shadow-sm">
+                    <Icon className="w-5 h-5 text-slate-700" />
+                  </div>
+                  <span className="text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200">
+                    SIMULATION
+                  </span>
+                </div>
+                
+                <h3 className="font-extrabold text-sm mb-1.5 text-slate-900">
+                  {ev.title}
+                </h3>
+                <p className="text-[10px] font-medium leading-relaxed opacity-80 text-slate-600">
+                  {ev.description}
+                </p>
+
+                {activeSimulationId === ev.id && (
+                  <div className="absolute inset-0 bg-white/50 backdrop-blur-[1px] flex items-center justify-center">
+                    <Loader2 className="w-6 h-6 animate-spin text-slate-800" />
+                  </div>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <SafetyVerificationModal 
+        isOpen={isSafetyModalOpen} 
+        onClose={() => setIsSafetyModalOpen(false)} 
+        segmentId={activeSegment?.id || 'S1'}
+      />
     </div>
   );
 }

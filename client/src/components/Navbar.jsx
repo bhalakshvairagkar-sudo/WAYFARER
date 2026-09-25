@@ -105,23 +105,7 @@ export default function Navbar() {
 
       </div>
 
-      {/* Mobile Horizontal Navigation Bar */}
-      <div className="lg:hidden flex items-center justify-around border-t border-slate-100 bg-slate-50 px-2 py-1.5 overflow-x-auto text-[11px] font-bold">
-        {navLinks.map((link) => {
-          const isActive = location.pathname === link.to || (link.to !== '/' && location.pathname.startsWith(link.to));
-          return (
-            <Link
-              key={link.to}
-              to={link.to}
-              className={`px-2.5 py-1 rounded-md shrink-0 transition ${
-                isActive ? 'bg-white text-brand-700 shadow-2xs' : 'text-slate-600'
-              }`}
-            >
-              {link.label}
-            </Link>
-          );
-        })}
-      </div>
+      {/* Mobile Horizontal Navigation Bar (Hidden, replaced by MobileBottomNav) */}
     </header>
   );
 }

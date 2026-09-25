@@ -12,7 +12,8 @@ import {
   CheckCircle2,
   Sliders,
   RotateCcw,
-  Loader2
+  Loader2,
+  MapPin
 } from 'lucide-react';
 import { useJourney } from '../context/JourneyContext.jsx';
 
@@ -74,197 +75,169 @@ export default function ProfilePageView() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
       
-      {/* Page Title */}
-      <div className="border-b border-slate-200 pb-5">
-        <span className="text-[10px] font-extrabold text-brand-600 uppercase tracking-widest block mb-1">
-          STEP 1: INCLUSIVE PERSONALIZATION
-        </span>
-        <h1 className="text-3xl font-black text-slate-900 tracking-tight">
-          Tell WAYFARER How You Travel
-        </h1>
-        <p className="text-xs sm:text-sm text-slate-500 font-medium mt-1">
-          WAYFARER calibrates its mathematical 5-factor scoring engine directly around your physical mobility, crowd sensitivities, safety preferences, and budget.
-        </p>
-      </div>
-
-      {/* Main Input Form */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-soft space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-5">
         <div>
-          <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider mb-2 flex items-center justify-between">
-            <span className="flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-brand-600" />
-              Describe Your Travel Needs & Accessibility Constraints
-            </span>
-            <span className="text-[10px] text-slate-400 font-medium">Natural Language Prompt</span>
-          </label>
-          <textarea
-            rows={4}
-            value={promptText}
-            onChange={(e) => setPromptText(e.target.value)}
-            placeholder="Example: I'm traveling alone with a wheelchair, cannot climb steps, prefer quieter corridors, and prioritize safety..."
-            className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:bg-white transition leading-relaxed"
-          />
-        </div>
-
-        {/* Structured Preferences Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 pt-2 border-t border-slate-100">
-          
-          <div>
-            <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
-              Traveler Name
-            </label>
-            <input
-              type="text"
-              value={travelerName}
-              onChange={(e) => setTravelerName(e.target.value)}
-              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:bg-white"
-            />
-          </div>
-
-          <div>
-            <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
-              Mobility Archetype
-            </label>
-            <select
-              value={mobility}
-              onChange={(e) => setMobility(e.target.value)}
-              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:bg-white"
-            >
-              <option value="wheelchair">Power / Manual Wheelchair</option>
-              <option value="cane">Walking Cane / Assisted</option>
-              <option value="elderly">Elderly / Low Endurance</option>
-              <option value="standard">Standard Unassisted</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
-              Stairs Allowed?
-            </label>
-            <select
-              value={stairsAllowed ? 'yes' : 'no'}
-              onChange={(e) => setStairsAllowed(e.target.value === 'yes')}
-              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:bg-white"
-            >
-              <option value="no">Strictly No (Step-Free Ramps Only)</option>
-              <option value="yes">Yes (Up to 5 steps permitted)</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
-              Safety Priority
-            </label>
-            <select
-              value={safetyPriority}
-              onChange={(e) => setSafetyPriority(e.target.value)}
-              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:bg-white"
-            >
-              <option value="high">High (Verified lighting & patrols)</option>
-              <option value="medium">Standard / Balanced</option>
-              <option value="low">Low (Direct path only)</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
-              Crowd Tolerance
-            </label>
-            <select
-              value={crowdTolerance}
-              onChange={(e) => setCrowdTolerance(e.target.value)}
-              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:bg-white"
-            >
-              <option value="low">Low (Avoid peak congestion)</option>
-              <option value="medium">Moderate / Standard</option>
-              <option value="high">High (Crowds do not bother)</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
-              Budget Sensitivity
-            </label>
-            <select
-              value={budgetPriority}
-              onChange={(e) => setBudgetPriority(e.target.value)}
-              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:bg-white"
-            >
-              <option value="medium">Standard Balanced</option>
-              <option value="high">Budget Prioritized (Cost Factor 30%)</option>
-              <option value="low">Flexibility Prioritized</option>
-            </select>
-          </div>
-
-        </div>
-
-        {/* Action Button */}
-        <div className="pt-2 flex justify-end">
-          <button
-            type="button"
-            disabled={isLoading}
-            onClick={handleUnderstandNeeds}
-            className="px-6 py-3 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs sm:text-sm transition flex items-center gap-2 shadow-md shadow-brand-600/20 disabled:opacity-50"
-          >
-            {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-            <span>Understand My Needs (AI Engine)</span>
-          </button>
+          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+            <User className="w-6 h-6 text-brand-600" />
+            Traveler Profile
+          </h1>
+          <p className="text-xs sm:text-sm text-slate-500 font-medium mt-1">
+            Manage your mobility needs, accessibility preferences, and past journeys.
+          </p>
         </div>
       </div>
 
-      {/* Parsed Profile Display Card */}
-      {(parsedConfirmation || journeyState.traveler) && (
-        <div className="bg-emerald-50/70 border border-emerald-200 rounded-2xl p-6 shadow-soft space-y-4 animate-scale-up">
-          <div className="flex items-center justify-between pb-3 border-b border-emerald-200/80">
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-              <h3 className="font-extrabold text-sm text-emerald-950">
-                Parsed Traveler Profile & Calibrated Scoring Weights
-              </h3>
-            </div>
-            <span className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-emerald-200 text-emerald-900 uppercase tracking-wider">
-              Profile Ready
-            </span>
-          </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        
+        {/* Left Column: Preferences */}
+        <div className="space-y-6">
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm">
+            <h2 className="text-lg font-black text-slate-900 flex items-center gap-2 mb-4">
+              <Sliders className="w-5 h-5 text-brand-500" />
+              Routing Preferences
+            </h2>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Traveler Name</label>
+                <input
+                  type="text"
+                  value={travelerName}
+                  onChange={(e) => setTravelerName(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium focus:ring-2 focus:ring-brand-500"
+                />
+              </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-            <div className="p-3 bg-white/80 rounded-xl border border-emerald-100">
-              <span className="text-[10px] font-bold text-slate-500 uppercase block">Traveler</span>
-              <span className="font-black text-slate-900">{parsedConfirmation?.name || travelerName}</span>
-            </div>
-            <div className="p-3 bg-white/80 rounded-xl border border-emerald-100">
-              <span className="text-[10px] font-bold text-slate-500 uppercase block">Mobility</span>
-              <span className="font-black text-slate-900 capitalize">{parsedConfirmation?.mobility || mobility}</span>
-            </div>
-            <div className="p-3 bg-white/80 rounded-xl border border-emerald-100">
-              <span className="text-[10px] font-bold text-slate-500 uppercase block">Stairs Allowed</span>
-              <span className="font-black text-slate-900">{stairsAllowed ? 'Allowed' : 'Step-Free Only'}</span>
-            </div>
-            <div className="p-3 bg-white/80 rounded-xl border border-emerald-100">
-              <span className="text-[10px] font-bold text-slate-500 uppercase block">Safety / Crowd</span>
-              <span className="font-black text-slate-900 capitalize">{safetyPriority} / {crowdTolerance}</span>
-            </div>
-          </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Primary Mobility</label>
+                <select
+                  value={mobility}
+                  onChange={(e) => setMobility(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium focus:ring-2 focus:ring-brand-500"
+                >
+                  <option value="none">Fully Ambulatory</option>
+                  <option value="cane">Cane / Walker</option>
+                  <option value="wheelchair">Manual Wheelchair</option>
+                  <option value="power_wheelchair">Power Wheelchair / Scooter</option>
+                  <option value="vision">Vision Impaired</option>
+                </select>
+              </div>
+              
+              <div className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                <div>
+                  <h4 className="text-sm font-bold text-slate-900">Avoid Stairs</h4>
+                  <p className="text-xs text-slate-500 font-medium">Require step-free routes</p>
+                </div>
+                <button 
+                  onClick={() => setStairsAllowed(!stairsAllowed)}
+                  className={`w-12 h-6 rounded-full transition-colors relative ${!stairsAllowed ? 'bg-brand-600' : 'bg-slate-300'}`}
+                >
+                  <span className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform ${!stairsAllowed ? 'translate-x-6' : 'translate-x-0'}`} />
+                </button>
+              </div>
 
-          <p className="text-xs text-emerald-900 font-medium">
-            {parsedConfirmation?.summary || journeyState.traveler?.summary || 'Continuous step-free ramps prioritized; bottleneck segments penalized.'}
-          </p>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-2">Safety Priority</label>
+                <input 
+                  type="range" 
+                  min="0" max="100" 
+                  value={safetyPriority === 'low' ? 33 : safetyPriority === 'medium' ? 66 : 100} 
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value);
+                    setSafetyPriority(val < 50 ? 'low' : val < 80 ? 'medium' : 'high');
+                  }}
+                  className="w-full accent-brand-600" 
+                />
+                <div className="flex justify-between text-[10px] font-bold text-slate-400 mt-1 uppercase">
+                  <span>Standard</span>
+                  <span>High</span>
+                  <span>Maximum</span>
+                </div>
+              </div>
+            </div>
 
-          <div className="pt-2 flex justify-end">
-            <button
-              type="button"
+            <button 
               onClick={handleContinueToPlan}
-              className="px-8 py-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs sm:text-sm transition flex items-center gap-2 shadow-md shadow-slate-900/20"
+              className="mt-6 w-full py-3 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-sm font-bold shadow-sm transition"
             >
-              <span>Continue to Journey Planner</span>
-              <ArrowRight className="w-4 h-4" />
+              Save Preferences
             </button>
           </div>
+          
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm">
+            <h2 className="text-lg font-black text-slate-900 flex items-center gap-2 mb-4">
+              <Accessibility className="w-5 h-5 text-indigo-500" />
+              App Accessibility
+            </h2>
+            <div className="space-y-3">
+              <div className="flex justify-between items-center text-sm font-medium text-slate-700 p-2">
+                <span>Text Size</span>
+                <span className="px-3 py-1 bg-slate-100 rounded-lg text-xs font-bold">Standard</span>
+              </div>
+              <div className="flex justify-between items-center text-sm font-medium text-slate-700 p-2">
+                <span>High Contrast</span>
+                <span className="px-3 py-1 bg-slate-100 rounded-lg text-xs font-bold">Off</span>
+              </div>
+              <div className="flex justify-between items-center text-sm font-medium text-slate-700 p-2">
+                <span>Reduce Motion</span>
+                <span className="px-3 py-1 bg-slate-100 rounded-lg text-xs font-bold">Off</span>
+              </div>
+            </div>
+          </div>
         </div>
-      )}
 
+        {/* Right Column: My Trips */}
+        <div className="space-y-4">
+          <h2 className="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest pl-1">
+            MY JOURNEYS
+          </h2>
+          
+          <div className="bg-white border border-brand-200 rounded-3xl p-5 shadow-sm relative overflow-hidden group hover:border-brand-300 transition-colors cursor-pointer" onClick={() => navigate('/journey/active')}>
+            <div className="absolute top-0 right-0 w-24 h-24 bg-brand-50 rounded-bl-full -mr-4 -mt-4 opacity-50 pointer-events-none" />
+            <div className="flex justify-between items-start relative z-10">
+              <div>
+                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 text-[10px] font-bold uppercase mb-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> Active
+                </span>
+                <h3 className="text-lg font-black text-slate-900 leading-tight">Mumbai → Goa</h3>
+                <p className="text-xs font-medium text-slate-500 mt-1">Today • WAYFARER Score 92</p>
+              </div>
+              <div className="w-10 h-10 rounded-full bg-brand-50 text-brand-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                <ArrowRight className="w-5 h-5" />
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-slate-50 border border-slate-200 rounded-3xl p-5 shadow-sm opacity-75">
+            <div className="flex justify-between items-start">
+              <div>
+                <span className="inline-block px-2 py-0.5 rounded-md bg-slate-200 text-slate-600 text-[10px] font-bold uppercase mb-2">
+                  Completed
+                </span>
+                <h3 className="text-lg font-bold text-slate-900 leading-tight">Pune → Mumbai</h3>
+                <p className="text-xs font-medium text-slate-500 mt-1">3 days ago • Score 88</p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-slate-50 border border-slate-200 rounded-3xl p-5 shadow-sm opacity-75">
+            <div className="flex justify-between items-start">
+              <div>
+                <span className="inline-block px-2 py-0.5 rounded-md bg-slate-200 text-slate-600 text-[10px] font-bold uppercase mb-2">
+                  Completed
+                </span>
+                <h3 className="text-lg font-bold text-slate-900 leading-tight">Jaipur Transit</h3>
+                <p className="text-xs font-medium text-slate-500 mt-1">Last Month • Score 94</p>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
     </div>
   );
 }
