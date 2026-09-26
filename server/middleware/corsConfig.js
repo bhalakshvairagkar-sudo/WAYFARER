@@ -24,27 +24,60 @@ export const configureCors = () => {
 
   const allowedOrigins = new Set([
     ...envOrigins,
-    ...(process.env.NODE_ENV !== 'production' ? defaultDevOrigins : [])
+    ...defaultDevOrigins
   ]);
 
-  return cors({
-    origin: (origin, callback) => {
-      // Allow mobile apps, curl, or same-origin server requests (where origin is undefined)
-      if (!origin) return callback(null, true);
+  if (process.env.RENDER_EXTERNAL_URL) {
+    allowedOrigins.add(process.env.RENDER_EXTERNAL_URL.replace(/\/$/, ''));
+  }
 
-      if (allowedOrigins.has(origin)) {
-        return callback(null, true);
-      }
+  return (req, res, next) => {
+    return cors({
+      origin: (origin, callback) => {
+        // 1. Allow mobile apps, curl, or same-origin requests (where origin is undefined)
+        if (!origin) return callback(null, true);
 
-      securityLogger.violation('CORS_ORIGIN_REJECTED', {
-        reason: `Origin '${origin}' not permitted by CORS policy`
-      });
+        // 2. Allow explicitly configured origins
+        if (allowedOrigins.has(origin)) {
+          return callback(null, true);
+        }
 
-      return callback(new Error('Cross-Origin Request Blocked by WAYFARER Security Policy'));
-    },
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'x-requested-with', 'x-forwarded-for'],
-    maxAge: 86400 // Cache preflight for 24 hours
-  });
+        // 3. Allow Render deployment URL if available in environment
+        if (process.env.RENDER_EXTERNAL_URL && origin === process.env.RENDER_EXTERNAL_URL.replace(/\/$/, '')) {
+          return callback(null, true);
+        }
+
+        // 4. Allow any *.onrender.com domains (Render production & preview deployments)
+        if (/^https:\/\/[a-zA-Z0-9-]+\.onrender\.com$/.test(origin)) {
+          return callback(null, true);
+        }
+
+        // 5. Allow requests where origin host matches current request host (same origin)
+        const hostHeader = (req.headers && (req.headers['x-forwarded-host'] || req.headers.host)) || '';
+        if (hostHeader) {
+          try {
+            const originHost = new URL(origin).host;
+            if (originHost === hostHeader) {
+              return callback(null, true);
+            }
+          } catch {
+            // invalid URL format
+          }
+        }
+
+        // Log violation for genuinely unauthorized external origins
+        securityLogger.violation('CORS_ORIGIN_REJECTED', {
+          origin,
+          reason: `Origin '${origin}' not permitted by CORS policy`
+        });
+
+        // Deny cross-origin access safely without throwing 500 server crash
+        return callback(null, false);
+      },
+      credentials: true,
+      methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'Authorization', 'x-requested-with', 'x-forwarded-for'],
+      maxAge: 86400 // Cache preflight for 24 hours
+    })(req, res, next);
+  };
 };

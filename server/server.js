@@ -258,7 +258,11 @@ app.get("/api/operations/fleet", optionalAuth, (req, res) => {
 // 14. Serve frontend static build if available
 const clientDistPath = path.resolve(__dirname, "../client/dist");
 if (fs.existsSync(clientDistPath)) {
-  app.use(express.static(clientDistPath));
+  app.use(express.static(clientDistPath, {
+    setHeaders: (res) => {
+      res.setHeader("Access-Control-Allow-Origin", "*");
+    }
+  }));
   app.get("*", (req, res, next) => {
     if (req.path.startsWith("/api")) return next();
     res.sendFile(path.resolve(clientDistPath, "index.html"));
