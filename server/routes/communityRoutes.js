@@ -21,6 +21,8 @@ import {
 } from "../engine/eventEngine.js";
 import { optionalAuth } from "../middleware/authMiddleware.js";
 import { securityLogger } from "../utils/securityLogger.js";
+import { Incident } from "../models/Incident.js";
+import { isDbConnected } from "../config/db.js";
 
 const router = express.Router();
 
@@ -87,6 +89,30 @@ router.post("/report", optionalAuth, async (req, res, next) => {
       if (incidentDecision.decision === "ADAPT" && personalImpact.recommendedAction === "ADAPT") {
         journeyAdaptation = applyIncidentToJourney(req.body.journeyState, incidentDecision, traveler);
       }
+    }
+
+    // Persist incident cluster and report to MongoDB if database is connected
+    if (isDbConnected() && result.cluster) {
+      Incident.findOneAndUpdate(
+        { clusterId: result.cluster.id },
+        {
+          clusterId: result.cluster.id,
+          resourceId: result.cluster.resourceId,
+          resourceName: result.cluster.resourceName,
+          eventType: result.cluster.eventType,
+          title: result.cluster.title,
+          status: result.cluster.status,
+          decision: result.cluster.decision,
+          scores: result.cluster.scores,
+          evidenceFusion: result.cluster.evidenceFusion,
+          independenceAnalysis: result.cluster.independenceAnalysis,
+          reports: result.cluster.reports,
+          firstReportedAt: result.cluster.firstReportedAt,
+          lastReportedAt: result.cluster.lastReportedAt,
+          operatorNotes: result.cluster.operatorNotes
+        },
+        { upsert: true, new: true }
+      ).catch(err => securityLogger.warn(`[MONGO_INCIDENT_SYNC] ${err.message}`));
     }
 
     return res.status(201).json({

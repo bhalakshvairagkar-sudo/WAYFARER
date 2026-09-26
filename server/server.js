@@ -22,6 +22,7 @@ import { securityLogger } from "./utils/securityLogger.js";
 import authRoutes from "./routes/authRoutes.js";
 import locationRoutes from "./routes/locationRoutes.js";
 import communityRoutes from "./routes/communityRoutes.js";
+import { Journey } from "./models/Journey.js";
 
 import { DEFAULT_TRIP, DEFAULT_TRAVELER, DEFAULT_STOPS } from "./data/defaultJourney.js";
 import { parseJourney } from "./engine/journeyParser.js";
@@ -255,7 +256,80 @@ app.post("/api/journey/event", optionalAuth, async (req, res, next) => {
   }
 });
 
-// 13. Operations Center — Fleet Status
+// 13. Save Journey to MongoDB
+app.post("/api/journey/save", optionalAuth, async (req, res, next) => {
+  try {
+    const { trip, traveler, stops, segments, overallScore, fitLevel, journeyHealth, eventHistory } = req.body;
+    if (!trip || !stops) {
+      return res.status(400).json({ success: false, error: "Trip details and stops are required to save a journey." });
+    }
+
+    const userId = req.user ? req.user.id || req.user.userId : "guest-traveler";
+
+    if (isDbConnected()) {
+      const journey = new Journey({
+        userId,
+        trip,
+        traveler,
+        stops,
+        segments,
+        overallScore: overallScore || 85,
+        fitLevel: fitLevel || "High Fit",
+        journeyHealth: journeyHealth || { overall: 91, status: "OPTIMAL" },
+        eventHistory: eventHistory || []
+      });
+      await journey.save();
+      return res.status(201).json({
+        success: true,
+        message: "Journey saved to MongoDB successfully",
+        journeyId: journey._id,
+        journey
+      });
+    } else {
+      return res.status(201).json({
+        success: true,
+        message: "Journey saved in temporary session (In-Memory Fallback)",
+        journeyId: `temp-${Date.now()}`
+      });
+    }
+  } catch (err) {
+    next(err);
+  }
+});
+
+// 14. Retrieve Saved Journeys from MongoDB
+app.get("/api/journey/history", optionalAuth, async (req, res, next) => {
+  try {
+    const userId = req.user ? req.user.id || req.user.userId : "guest-traveler";
+    if (isDbConnected()) {
+      const journeys = await Journey.find({ userId }).sort({ createdAt: -1 }).limit(20);
+      return res.json({ success: true, count: journeys.length, journeys });
+    } else {
+      return res.json({ success: true, count: 0, journeys: [] });
+    }
+  } catch (err) {
+    next(err);
+  }
+});
+
+// 15. Retrieve Single Journey by ID from MongoDB
+app.get("/api/journey/:id", optionalAuth, async (req, res, next) => {
+  try {
+    if (isDbConnected()) {
+      const journey = await Journey.findById(req.params.id);
+      if (!journey) {
+        return res.status(404).json({ success: false, error: "Journey not found in database." });
+      }
+      return res.json({ success: true, journey });
+    } else {
+      return res.status(404).json({ success: false, error: "Database offline in fallback mode." });
+    }
+  } catch (err) {
+    next(err);
+  }
+});
+
+// 16. Operations Center — Fleet Status
 app.get("/api/operations/fleet", optionalAuth, (req, res) => {
   res.json({
     success: true,
