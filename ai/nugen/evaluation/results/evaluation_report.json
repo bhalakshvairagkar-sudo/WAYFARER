@@ -1,0 +1,1064 @@
+{
+  "benchmark_name": "WAYFARER Weather-Aware Adaptive Travel Benchmark",
+  "timestamp": "2026-09-26T22:11:13.137Z",
+  "total_scenarios": 20,
+  "overall_domain_accuracy": 0.913,
+  "metrics": {
+    "risk_classification_accuracy": 0.95,
+    "primary_impact_accuracy": 0.8,
+    "route_recommendation_accuracy": 0.9,
+    "accessibility_fidelity": 1,
+    "average_confidence": 0.93,
+    "average_latency_ms": 0,
+    "schema_compliance_rate": 1
+  },
+  "results": [
+    {
+      "id": "eval-01",
+      "name": "Clear Weather Baseline",
+      "input": {
+        "weather": {
+          "temperatureC": 28,
+          "rainfallMmPerHour": 0,
+          "condition": "CLEAR"
+        },
+        "traveler": {
+          "mobility": "STANDARD"
+        },
+        "route": {
+          "routeId": "route-A",
+          "corridorId": "S1"
+        },
+        "environment": {
+          "floodRisk": 0.01,
+          "surfaceWetness": "DRY"
+        },
+        "digitalTwin": {
+          "mode": "REAL"
+        }
+      },
+      "expected": {
+        "riskLevel": "LOW",
+        "primaryImpact": "NONE",
+        "routeRecommendation": "CONTINUE",
+        "accessibilityImpact": "NONE"
+      },
+      "predicted": {
+        "riskLevel": "LOW",
+        "primaryImpact": "NONE",
+        "routeRecommendation": "CONTINUE",
+        "accessibilityImpact": "NONE",
+        "estimatedEtaDeltaMinutes": 0,
+        "predictedJourneyHealth": 92,
+        "confidence": 0.95
+      },
+      "matches": {
+        "risk": true,
+        "impact": true,
+        "route": true,
+        "accessibility": true,
+        "schemaValid": true
+      },
+      "score": 1,
+      "durationMs": 1,
+      "modelSource": "DETERMINISTIC_FALLBACK"
+    },
+    {
+      "id": "eval-02",
+      "name": "Light Passing Drizzle",
+      "input": {
+        "weather": {
+          "temperatureC": 27,
+          "rainfallMmPerHour": 1.5,
+          "condition": "LIGHT_RAIN"
+        },
+        "traveler": {
+          "mobility": "STANDARD"
+        },
+        "route": {
+          "routeId": "route-A",
+          "corridorId": "S1"
+        },
+        "environment": {
+          "floodRisk": 0.1,
+          "surfaceWetness": "DAMP"
+        },
+        "digitalTwin": {
+          "mode": "REAL"
+        }
+      },
+      "expected": {
+        "riskLevel": "LOW",
+        "primaryImpact": "COMFORT",
+        "routeRecommendation": "MONITOR",
+        "accessibilityImpact": "LOW"
+      },
+      "predicted": {
+        "riskLevel": "LOW",
+        "primaryImpact": "COMFORT",
+        "routeRecommendation": "MONITOR",
+        "accessibilityImpact": "LOW",
+        "estimatedEtaDeltaMinutes": 4,
+        "predictedJourneyHealth": 85,
+        "confidence": 0.88
+      },
+      "matches": {
+        "risk": true,
+        "impact": true,
+        "route": true,
+        "accessibility": true,
+        "schemaValid": true
+      },
+      "score": 1,
+      "durationMs": 0,
+      "modelSource": "DETERMINISTIC_FALLBACK"
+    },
+    {
+      "id": "eval-03",
+      "name": "Heavy Monsoon Showers",
+      "input": {
+        "weather": {
+          "temperatureC": 25,
+          "rainfallMmPerHour": 35,
+          "condition": "HEAVY_RAIN"
+        },
+        "traveler": {
+          "mobility": "STANDARD"
+        },
+        "route": {
+          "routeId": "route-A",
+          "corridorId": "S2"
+        },
+        "environment": {
+          "floodRisk": 0.5,
+          "surfaceWetness": "WATERLOGGED"
+        },
+        "digitalTwin": {
+          "mode": "REAL"
+        }
+      },
+      "expected": {
+        "riskLevel": "MEDIUM",
+        "primaryImpact": "ETA_DEGRADATION",
+        "routeRecommendation": "WARN",
+        "accessibilityImpact": "LOW"
+      },
+      "predicted": {
+        "riskLevel": "MEDIUM",
+        "primaryImpact": "ETA_DEGRADATION",
+        "routeRecommendation": "WARN",
+        "accessibilityImpact": "LOW",
+        "estimatedEtaDeltaMinutes": 12,
+        "predictedJourneyHealth": 74,
+        "confidence": 0.9
+      },
+      "matches": {
+        "risk": true,
+        "impact": true,
+        "route": true,
+        "accessibility": true,
+        "schemaValid": true
+      },
+      "score": 1,
+      "durationMs": 0,
+      "modelSource": "DETERMINISTIC_FALLBACK"
+    },
+    {
+      "id": "eval-04",
+      "name": "Torrential Corridor Flooding",
+      "input": {
+        "weather": {
+          "temperatureC": 23,
+          "rainfallMmPerHour": 60,
+          "condition": "TORRENTIAL_RAIN"
+        },
+        "traveler": {
+          "mobility": "STANDARD"
+        },
+        "route": {
+          "routeId": "route-A",
+          "corridorId": "S3"
+        },
+        "environment": {
+          "floodRisk": 0.9,
+          "surfaceWetness": "FLOODED"
+        },
+        "socialEvidence": {
+          "confidence": 0.95,
+          "sourceTrustLevel": "OFFICIAL_POLICE"
+        },
+        "digitalTwin": {
+          "mode": "REAL"
+        }
+      },
+      "expected": {
+        "riskLevel": "CRITICAL",
+        "primaryImpact": "FLOODING",
+        "routeRecommendation": "AVOID_SEGMENT",
+        "accessibilityImpact": "HIGH"
+      },
+      "predicted": {
+        "riskLevel": "CRITICAL",
+        "primaryImpact": "HOSPITALITY_DEMAND",
+        "routeRecommendation": "AVOID_SEGMENT",
+        "accessibilityImpact": "HIGH",
+        "estimatedEtaDeltaMinutes": 28,
+        "predictedJourneyHealth": 56,
+        "confidence": 0.95
+      },
+      "matches": {
+        "risk": true,
+        "impact": false,
+        "route": true,
+        "accessibility": true,
+        "schemaValid": true
+      },
+      "score": 0.75,
+      "durationMs": 0,
+      "modelSource": "DETERMINISTIC_FALLBACK"
+    },
+    {
+      "id": "eval-05",
+      "name": "Extreme Coastal Heatwave",
+      "input": {
+        "weather": {
+          "temperatureC": 41,
+          "rainfallMmPerHour": 0,
+          "condition": "HEATWAVE"
+        },
+        "traveler": {
+          "mobility": "STANDARD",
+          "comfortPriority": "HIGH"
+        },
+        "route": {
+          "routeId": "route-A",
+          "corridorId": "S3",
+          "exposedSegments": 3
+        },
+        "environment": {
+          "floodRisk": 0,
+          "surfaceWetness": "DRY"
+        },
+        "digitalTwin": {
+          "mode": "REAL"
+        }
+      },
+      "expected": {
+        "riskLevel": "HIGH",
+        "primaryImpact": "COMFORT",
+        "routeRecommendation": "WARN",
+        "accessibilityImpact": "MEDIUM"
+      },
+      "predicted": {
+        "riskLevel": "HIGH",
+        "primaryImpact": "COMFORT",
+        "routeRecommendation": "WARN",
+        "accessibilityImpact": "MEDIUM",
+        "estimatedEtaDeltaMinutes": 8,
+        "predictedJourneyHealth": 68,
+        "confidence": 0.91
+      },
+      "matches": {
+        "risk": true,
+        "impact": true,
+        "route": true,
+        "accessibility": true,
+        "schemaValid": true
+      },
+      "score": 1,
+      "durationMs": 0,
+      "modelSource": "DETERMINISTIC_FALLBACK"
+    },
+    {
+      "id": "eval-06",
+      "name": "Wheelchair Traveler in Torrential Rain",
+      "input": {
+        "weather": {
+          "temperatureC": 24,
+          "rainfallMmPerHour": 45,
+          "condition": "HEAVY_RAIN"
+        },
+        "traveler": {
+          "mobility": "WHEELCHAIR",
+          "stepFreeRequired": true,
+          "stairsAllowed": false
+        },
+        "route": {
+          "routeId": "route-A",
+          "corridorId": "S3",
+          "elevation": "LOW_COASTAL"
+        },
+        "environment": {
+          "floodRisk": 0.85,
+          "waterAccumulationMm": 36,
+          "surfaceWetness": "FLOODED"
+        },
+        "digitalTwin": {
+          "mode": "REAL"
+        }
+      },
+      "expected": {
+        "riskLevel": "CRITICAL",
+        "primaryImpact": "ACCESSIBILITY",
+        "routeRecommendation": "REROUTE",
+        "accessibilityImpact": "CRITICAL"
+      },
+      "predicted": {
+        "riskLevel": "CRITICAL",
+        "primaryImpact": "ACCESSIBILITY",
+        "routeRecommendation": "REROUTE",
+        "accessibilityImpact": "CRITICAL",
+        "estimatedEtaDeltaMinutes": 35,
+        "predictedJourneyHealth": 52,
+        "confidence": 0.96
+      },
+      "matches": {
+        "risk": true,
+        "impact": true,
+        "route": true,
+        "accessibility": true,
+        "schemaValid": true
+      },
+      "score": 1,
+      "durationMs": 0,
+      "modelSource": "DETERMINISTIC_FALLBACK"
+    },
+    {
+      "id": "eval-07",
+      "name": "Senior Traveler on Wet Flagstones",
+      "input": {
+        "weather": {
+          "temperatureC": 25,
+          "rainfallMmPerHour": 20,
+          "condition": "MODERATE_RAIN"
+        },
+        "traveler": {
+          "mobility": "SENIOR",
+          "walkingTolerance": "LOW"
+        },
+        "route": {
+          "routeId": "route-A",
+          "corridorId": "S2"
+        },
+        "environment": {
+          "floodRisk": 0.4,
+          "waterAccumulationMm": 12,
+          "surfaceWetness": "WATERLOGGED"
+        },
+        "digitalTwin": {
+          "mode": "REAL"
+        }
+      },
+      "expected": {
+        "riskLevel": "HIGH",
+        "primaryImpact": "SAFETY",
+        "routeRecommendation": "WARN",
+        "accessibilityImpact": "HIGH"
+      },
+      "predicted": {
+        "riskLevel": "HIGH",
+        "primaryImpact": "SAFETY",
+        "routeRecommendation": "WARN",
+        "accessibilityImpact": "HIGH",
+        "estimatedEtaDeltaMinutes": 16,
+        "predictedJourneyHealth": 64,
+        "confidence": 0.93
+      },
+      "matches": {
+        "risk": true,
+        "impact": true,
+        "route": true,
+        "accessibility": true,
+        "schemaValid": true
+      },
+      "score": 1,
+      "durationMs": 0,
+      "modelSource": "DETERMINISTIC_FALLBACK"
+    },
+    {
+      "id": "eval-08",
+      "name": "Standard Traveler in Moderate Rain",
+      "input": {
+        "weather": {
+          "temperatureC": 26,
+          "rainfallMmPerHour": 12,
+          "condition": "MODERATE_RAIN"
+        },
+        "traveler": {
+          "mobility": "STANDARD"
+        },
+        "route": {
+          "routeId": "route-A",
+          "corridorId": "S1"
+        },
+        "environment": {
+          "floodRisk": 0.25,
+          "surfaceWetness": "DAMP"
+        },
+        "digitalTwin": {
+          "mode": "REAL"
+        }
+      },
+      "expected": {
+        "riskLevel": "LOW",
+        "primaryImpact": "ETA_DEGRADATION",
+        "routeRecommendation": "MONITOR",
+        "accessibilityImpact": "LOW"
+      },
+      "predicted": {
+        "riskLevel": "LOW",
+        "primaryImpact": "COMFORT",
+        "routeRecommendation": "MONITOR",
+        "accessibilityImpact": "LOW",
+        "estimatedEtaDeltaMinutes": 4,
+        "predictedJourneyHealth": 85,
+        "confidence": 0.88
+      },
+      "matches": {
+        "risk": true,
+        "impact": false,
+        "route": true,
+        "accessibility": true,
+        "schemaValid": true
+      },
+      "score": 0.75,
+      "durationMs": 0,
+      "modelSource": "DETERMINISTIC_FALLBACK"
+    },
+    {
+      "id": "eval-09",
+      "name": "Covered Transit Alternative Under Storm",
+      "input": {
+        "weather": {
+          "temperatureC": 24,
+          "rainfallMmPerHour": 40,
+          "condition": "HEAVY_RAIN"
+        },
+        "traveler": {
+          "mobility": "STANDARD"
+        },
+        "route": {
+          "routeId": "route-C",
+          "corridorId": "S3",
+          "elevation": "ELEVATED_RIDGE"
+        },
+        "environment": {
+          "floodRisk": 0.15,
+          "surfaceWetness": "DAMP"
+        },
+        "digitalTwin": {
+          "mode": "REAL"
+        }
+      },
+      "expected": {
+        "riskLevel": "LOW",
+        "primaryImpact": "NONE",
+        "routeRecommendation": "CONTINUE",
+        "accessibilityImpact": "NONE"
+      },
+      "predicted": {
+        "riskLevel": "LOW",
+        "primaryImpact": "NONE",
+        "routeRecommendation": "CONTINUE",
+        "accessibilityImpact": "NONE",
+        "estimatedEtaDeltaMinutes": 4,
+        "predictedJourneyHealth": 86,
+        "confidence": 0.94
+      },
+      "matches": {
+        "risk": true,
+        "impact": true,
+        "route": true,
+        "accessibility": true,
+        "schemaValid": true
+      },
+      "score": 1,
+      "durationMs": 0,
+      "modelSource": "DETERMINISTIC_FALLBACK"
+    },
+    {
+      "id": "eval-10",
+      "name": "Flood-Prone Coastal Underpass",
+      "input": {
+        "weather": {
+          "temperatureC": 24,
+          "rainfallMmPerHour": 38,
+          "condition": "HEAVY_RAIN"
+        },
+        "traveler": {
+          "mobility": "STANDARD"
+        },
+        "route": {
+          "routeId": "route-A",
+          "corridorId": "S3",
+          "floodProneSegments": 2,
+          "elevation": "LOW_COASTAL"
+        },
+        "environment": {
+          "floodRisk": 0.78,
+          "surfaceWetness": "WATERLOGGED"
+        },
+        "digitalTwin": {
+          "mode": "REAL"
+        }
+      },
+      "expected": {
+        "riskLevel": "HIGH",
+        "primaryImpact": "FLOODING",
+        "routeRecommendation": "REROUTE",
+        "accessibilityImpact": "HIGH"
+      },
+      "predicted": {
+        "riskLevel": "HIGH",
+        "primaryImpact": "FLOODING",
+        "routeRecommendation": "REROUTE",
+        "accessibilityImpact": "HIGH",
+        "estimatedEtaDeltaMinutes": 22,
+        "predictedJourneyHealth": 65,
+        "confidence": 0.9
+      },
+      "matches": {
+        "risk": true,
+        "impact": true,
+        "route": true,
+        "accessibility": true,
+        "schemaValid": true
+      },
+      "score": 1,
+      "durationMs": 0,
+      "modelSource": "DETERMINISTIC_FALLBACK"
+    },
+    {
+      "id": "eval-11",
+      "name": "Conflicting Social Evidence Anomaly",
+      "input": {
+        "weather": {
+          "temperatureC": 26,
+          "rainfallMmPerHour": 5,
+          "condition": "LIGHT_RAIN"
+        },
+        "traveler": {
+          "mobility": "STANDARD"
+        },
+        "route": {
+          "routeId": "route-A",
+          "corridorId": "S1"
+        },
+        "environment": {
+          "floodRisk": 0.12,
+          "surfaceWetness": "DAMP"
+        },
+        "socialEvidence": {
+          "confidence": 0.35,
+          "floodingReports": 2,
+          "contradictionScore": 0.8,
+          "sourceTrustLevel": "SUSPECT_SPAM"
+        },
+        "digitalTwin": {
+          "mode": "REAL"
+        }
+      },
+      "expected": {
+        "riskLevel": "LOW",
+        "primaryImpact": "NONE",
+        "routeRecommendation": "MONITOR",
+        "accessibilityImpact": "LOW"
+      },
+      "predicted": {
+        "riskLevel": "LOW",
+        "primaryImpact": "COMFORT",
+        "routeRecommendation": "MONITOR",
+        "accessibilityImpact": "LOW",
+        "estimatedEtaDeltaMinutes": 4,
+        "predictedJourneyHealth": 85,
+        "confidence": 0.88
+      },
+      "matches": {
+        "risk": true,
+        "impact": false,
+        "route": true,
+        "accessibility": true,
+        "schemaValid": true
+      },
+      "score": 0.75,
+      "durationMs": 0,
+      "modelSource": "DETERMINISTIC_FALLBACK"
+    },
+    {
+      "id": "eval-12",
+      "name": "Weak Single Social Report vs Dry Road",
+      "input": {
+        "weather": {
+          "temperatureC": 29,
+          "rainfallMmPerHour": 0,
+          "condition": "CLEAR"
+        },
+        "traveler": {
+          "mobility": "WHEELCHAIR",
+          "stepFreeRequired": true
+        },
+        "route": {
+          "routeId": "route-A",
+          "corridorId": "S1"
+        },
+        "environment": {
+          "floodRisk": 0.02,
+          "surfaceWetness": "DRY"
+        },
+        "socialEvidence": {
+          "confidence": 0.2,
+          "floodingReports": 1,
+          "independentSources": 1,
+          "sourceTrustLevel": "UNVERIFIED_SINGLE"
+        },
+        "digitalTwin": {
+          "mode": "REAL"
+        }
+      },
+      "expected": {
+        "riskLevel": "LOW",
+        "primaryImpact": "NONE",
+        "routeRecommendation": "MONITOR",
+        "accessibilityImpact": "NONE"
+      },
+      "predicted": {
+        "riskLevel": "LOW",
+        "primaryImpact": "NONE",
+        "routeRecommendation": "CONTINUE",
+        "accessibilityImpact": "NONE",
+        "estimatedEtaDeltaMinutes": 0,
+        "predictedJourneyHealth": 92,
+        "confidence": 0.95
+      },
+      "matches": {
+        "risk": true,
+        "impact": true,
+        "route": false,
+        "accessibility": true,
+        "schemaValid": true
+      },
+      "score": 0.75,
+      "durationMs": 0,
+      "modelSource": "DETERMINISTIC_FALLBACK"
+    },
+    {
+      "id": "eval-13",
+      "name": "High-Confidence Police Inundation Alert",
+      "input": {
+        "weather": {
+          "temperatureC": 23,
+          "rainfallMmPerHour": 52,
+          "condition": "TORRENTIAL_RAIN"
+        },
+        "traveler": {
+          "mobility": "WHEELCHAIR",
+          "stepFreeRequired": true
+        },
+        "route": {
+          "routeId": "route-A",
+          "corridorId": "S3"
+        },
+        "environment": {
+          "floodRisk": 0.92,
+          "waterAccumulationMm": 44,
+          "surfaceWetness": "FLOODED"
+        },
+        "socialEvidence": {
+          "confidence": 0.98,
+          "floodingReports": 6,
+          "independentSources": 4,
+          "sourceTrustLevel": "OFFICIAL_POLICE"
+        },
+        "digitalTwin": {
+          "mode": "REAL"
+        }
+      },
+      "expected": {
+        "riskLevel": "CRITICAL",
+        "primaryImpact": "ACCESSIBILITY",
+        "routeRecommendation": "REROUTE",
+        "accessibilityImpact": "CRITICAL"
+      },
+      "predicted": {
+        "riskLevel": "CRITICAL",
+        "primaryImpact": "ACCESSIBILITY",
+        "routeRecommendation": "REROUTE",
+        "accessibilityImpact": "CRITICAL",
+        "estimatedEtaDeltaMinutes": 35,
+        "predictedJourneyHealth": 52,
+        "confidence": 0.96
+      },
+      "matches": {
+        "risk": true,
+        "impact": true,
+        "route": true,
+        "accessibility": true,
+        "schemaValid": true
+      },
+      "score": 1,
+      "durationMs": 0,
+      "modelSource": "DETERMINISTIC_FALLBACK"
+    },
+    {
+      "id": "eval-14",
+      "name": "Outdoor Attraction Viability Drop",
+      "input": {
+        "weather": {
+          "temperatureC": 24,
+          "rainfallMmPerHour": 48,
+          "condition": "HEAVY_RAIN",
+          "windSpeedKmh": 42
+        },
+        "traveler": {
+          "mobility": "STANDARD"
+        },
+        "route": {
+          "routeId": "route-A",
+          "corridorId": "S2"
+        },
+        "environment": {
+          "floodRisk": 0.65,
+          "surfaceWetness": "WATERLOGGED"
+        },
+        "digitalTwin": {
+          "mode": "REAL"
+        }
+      },
+      "expected": {
+        "riskLevel": "HIGH",
+        "primaryImpact": "COMFORT",
+        "routeRecommendation": "WARN",
+        "accessibilityImpact": "MEDIUM"
+      },
+      "predicted": {
+        "riskLevel": "HIGH",
+        "primaryImpact": "COMFORT",
+        "routeRecommendation": "WARN",
+        "accessibilityImpact": "MEDIUM",
+        "estimatedEtaDeltaMinutes": 12,
+        "predictedJourneyHealth": 74,
+        "confidence": 0.9
+      },
+      "matches": {
+        "risk": true,
+        "impact": true,
+        "route": true,
+        "accessibility": true,
+        "schemaValid": true
+      },
+      "score": 1,
+      "durationMs": 0,
+      "modelSource": "DETERMINISTIC_FALLBACK"
+    },
+    {
+      "id": "eval-15",
+      "name": "Indoor Heritage Institution Substitute",
+      "input": {
+        "weather": {
+          "temperatureC": 24,
+          "rainfallMmPerHour": 48,
+          "condition": "HEAVY_RAIN"
+        },
+        "traveler": {
+          "mobility": "WHEELCHAIR",
+          "stepFreeRequired": true
+        },
+        "route": {
+          "routeId": "route-C",
+          "corridorId": "MUSEUM-01"
+        },
+        "environment": {
+          "floodRisk": 0.1,
+          "surfaceWetness": "DRY"
+        },
+        "digitalTwin": {
+          "mode": "REAL"
+        }
+      },
+      "expected": {
+        "riskLevel": "LOW",
+        "primaryImpact": "NONE",
+        "routeRecommendation": "CONTINUE",
+        "accessibilityImpact": "NONE"
+      },
+      "predicted": {
+        "riskLevel": "LOW",
+        "primaryImpact": "NONE",
+        "routeRecommendation": "CONTINUE",
+        "accessibilityImpact": "NONE",
+        "estimatedEtaDeltaMinutes": 5,
+        "predictedJourneyHealth": 86,
+        "confidence": 0.94
+      },
+      "matches": {
+        "risk": true,
+        "impact": true,
+        "route": true,
+        "accessibility": true,
+        "schemaValid": true
+      },
+      "score": 1,
+      "durationMs": 0,
+      "modelSource": "DETERMINISTIC_FALLBACK"
+    },
+    {
+      "id": "eval-16",
+      "name": "Hospitality Surge in Corridor Hotels",
+      "input": {
+        "weather": {
+          "temperatureC": 23,
+          "rainfallMmPerHour": 55,
+          "condition": "TORRENTIAL_RAIN"
+        },
+        "traveler": {
+          "mobility": "STANDARD"
+        },
+        "route": {
+          "routeId": "route-A",
+          "corridorId": "S3"
+        },
+        "environment": {
+          "floodRisk": 0.88,
+          "waterAccumulationMm": 40,
+          "surfaceWetness": "FLOODED"
+        },
+        "digitalTwin": {
+          "mode": "REAL"
+        }
+      },
+      "expected": {
+        "riskLevel": "CRITICAL",
+        "primaryImpact": "HOSPITALITY_DEMAND",
+        "routeRecommendation": "REROUTE",
+        "accessibilityImpact": "HIGH"
+      },
+      "predicted": {
+        "riskLevel": "CRITICAL",
+        "primaryImpact": "HOSPITALITY_DEMAND",
+        "routeRecommendation": "AVOID_SEGMENT",
+        "accessibilityImpact": "HIGH",
+        "estimatedEtaDeltaMinutes": 28,
+        "predictedJourneyHealth": 56,
+        "confidence": 0.95
+      },
+      "matches": {
+        "risk": true,
+        "impact": true,
+        "route": false,
+        "accessibility": true,
+        "schemaValid": true
+      },
+      "score": 0.75,
+      "durationMs": 0,
+      "modelSource": "DETERMINISTIC_FALLBACK"
+    },
+    {
+      "id": "eval-17",
+      "name": "Restaurant Sheltered Dining Spike",
+      "input": {
+        "weather": {
+          "temperatureC": 25,
+          "rainfallMmPerHour": 28,
+          "condition": "HEAVY_RAIN"
+        },
+        "traveler": {
+          "mobility": "STANDARD"
+        },
+        "route": {
+          "routeId": "route-B",
+          "corridorId": "S2"
+        },
+        "environment": {
+          "floodRisk": 0.42,
+          "surfaceWetness": "WATERLOGGED"
+        },
+        "digitalTwin": {
+          "mode": "REAL"
+        }
+      },
+      "expected": {
+        "riskLevel": "MEDIUM",
+        "primaryImpact": "COMFORT",
+        "routeRecommendation": "WARN",
+        "accessibilityImpact": "LOW"
+      },
+      "predicted": {
+        "riskLevel": "MEDIUM",
+        "primaryImpact": "ETA_DEGRADATION",
+        "routeRecommendation": "WARN",
+        "accessibilityImpact": "LOW",
+        "estimatedEtaDeltaMinutes": 12,
+        "predictedJourneyHealth": 74,
+        "confidence": 0.9
+      },
+      "matches": {
+        "risk": true,
+        "impact": false,
+        "route": true,
+        "accessibility": true,
+        "schemaValid": true
+      },
+      "score": 0.75,
+      "durationMs": 0,
+      "modelSource": "DETERMINISTIC_FALLBACK"
+    },
+    {
+      "id": "eval-18",
+      "name": "Prolonged 5-Hour Storm Accumulation",
+      "input": {
+        "weather": {
+          "temperatureC": 23,
+          "rainfallMmPerHour": 35,
+          "forecastHours": 5,
+          "condition": "HEAVY_RAIN"
+        },
+        "traveler": {
+          "mobility": "STANDARD"
+        },
+        "route": {
+          "routeId": "route-A",
+          "corridorId": "S3"
+        },
+        "environment": {
+          "floodRisk": 0.82,
+          "waterAccumulationMm": 38,
+          "surfaceWetness": "FLOODED"
+        },
+        "digitalTwin": {
+          "mode": "REAL"
+        }
+      },
+      "expected": {
+        "riskLevel": "HIGH",
+        "primaryImpact": "FLOODING",
+        "routeRecommendation": "REROUTE",
+        "accessibilityImpact": "HIGH"
+      },
+      "predicted": {
+        "riskLevel": "CRITICAL",
+        "primaryImpact": "FLOODING",
+        "routeRecommendation": "REROUTE",
+        "accessibilityImpact": "HIGH",
+        "estimatedEtaDeltaMinutes": 28,
+        "predictedJourneyHealth": 56,
+        "confidence": 0.95
+      },
+      "matches": {
+        "risk": false,
+        "impact": true,
+        "route": true,
+        "accessibility": true,
+        "schemaValid": true
+      },
+      "score": 0.75,
+      "durationMs": 0,
+      "modelSource": "DETERMINISTIC_FALLBACK"
+    },
+    {
+      "id": "eval-19",
+      "name": "What-If Simulation Rainfall Surge (5 to 45 mm/h)",
+      "input": {
+        "weather": {
+          "temperatureC": 24,
+          "rainfallMmPerHour": 45,
+          "condition": "HEAVY_RAIN"
+        },
+        "traveler": {
+          "mobility": "WHEELCHAIR",
+          "stepFreeRequired": true
+        },
+        "route": {
+          "routeId": "route-A",
+          "corridorId": "S3",
+          "elevation": "LOW_COASTAL"
+        },
+        "environment": {
+          "floodRisk": 0.86,
+          "waterAccumulationMm": 35,
+          "surfaceWetness": "FLOODED"
+        },
+        "digitalTwin": {
+          "mode": "SIMULATION"
+        }
+      },
+      "expected": {
+        "riskLevel": "CRITICAL",
+        "primaryImpact": "ACCESSIBILITY",
+        "routeRecommendation": "REROUTE",
+        "accessibilityImpact": "CRITICAL"
+      },
+      "predicted": {
+        "riskLevel": "CRITICAL",
+        "primaryImpact": "ACCESSIBILITY",
+        "routeRecommendation": "REROUTE",
+        "accessibilityImpact": "CRITICAL",
+        "estimatedEtaDeltaMinutes": 35,
+        "predictedJourneyHealth": 52,
+        "confidence": 0.96
+      },
+      "matches": {
+        "risk": true,
+        "impact": true,
+        "route": true,
+        "accessibility": true,
+        "schemaValid": true
+      },
+      "score": 1,
+      "durationMs": 0,
+      "modelSource": "DETERMINISTIC_FALLBACK"
+    },
+    {
+      "id": "eval-20",
+      "name": "AI Adaptation Recovery on Inland Route C",
+      "input": {
+        "weather": {
+          "temperatureC": 24,
+          "rainfallMmPerHour": 45,
+          "condition": "HEAVY_RAIN"
+        },
+        "traveler": {
+          "mobility": "WHEELCHAIR",
+          "stepFreeRequired": true
+        },
+        "route": {
+          "routeId": "route-C",
+          "corridorId": "S3",
+          "elevation": "ELEVATED_RIDGE"
+        },
+        "environment": {
+          "floodRisk": 0.18,
+          "waterAccumulationMm": 5,
+          "surfaceWetness": "DAMP"
+        },
+        "digitalTwin": {
+          "mode": "SIMULATION"
+        }
+      },
+      "expected": {
+        "riskLevel": "LOW",
+        "primaryImpact": "NONE",
+        "routeRecommendation": "CONTINUE",
+        "accessibilityImpact": "NONE"
+      },
+      "predicted": {
+        "riskLevel": "LOW",
+        "primaryImpact": "NONE",
+        "routeRecommendation": "CONTINUE",
+        "accessibilityImpact": "NONE",
+        "estimatedEtaDeltaMinutes": 5,
+        "predictedJourneyHealth": 86,
+        "confidence": 0.94
+      },
+      "matches": {
+        "risk": true,
+        "impact": true,
+        "route": true,
+        "accessibility": true,
+        "schemaValid": true
+      },
+      "score": 1,
+      "durationMs": 0,
+      "modelSource": "DETERMINISTIC_FALLBACK"
+    }
+  ]
+}

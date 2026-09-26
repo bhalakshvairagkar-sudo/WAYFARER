@@ -24,6 +24,7 @@ import locationRoutes from "./routes/locationRoutes.js";
 import communityRoutes from "./routes/communityRoutes.js";
 import placeRoutes from "./routes/placeRoutes.js";
 import digitalTwinRoutes from "./routes/digitalTwinRoutes.js";
+import nugenRoutes from "./routes/nugenRoutes.js";
 import { Journey } from "./models/Journey.js";
 
 import { DEFAULT_TRIP, DEFAULT_TRAVELER, DEFAULT_STOPS } from "./data/defaultJourney.js";
@@ -91,6 +92,8 @@ app.get("/api/health", (req, res) => {
       databaseStatus: isDbConnected() ? "CONNECTED_MONGODB_TLS" : isUsingMemoryFallback() ? "SECURE_IN_MEMORY_FALLBACK" : "CONNECTING"
     },
     geminiConfigured,
+    nugenConfigured: Boolean(process.env.NUGEN_API_KEY && process.env.NUGEN_API_KEY.trim() !== ""),
+    nugenModelId: process.env.NUGEN_MODEL_ID || "wayfarer-weather-twin-v1",
     mode: geminiConfigured ? "LIVE_AI" : "DEMO_FALLBACK",
     timestamp: new Date().toISOString()
   });
@@ -133,6 +136,9 @@ app.use("/api/places", placeRoutes);
 
 // 11. Mount Weather-Driven AI Digital Twin Routes
 app.use("/api/digital-twin", digitalTwinRoutes);
+
+// 12. Mount Nugen Aligned Domain Intelligence Routes
+app.use("/api/ai/nugen", nugenRoutes);
 
 // 10. Default Preloaded Journey (Optional Auth: Supports Guest/Demo or Authenticated Traveler)
 app.get("/api/journey/default", optionalAuth, (req, res, next) => {

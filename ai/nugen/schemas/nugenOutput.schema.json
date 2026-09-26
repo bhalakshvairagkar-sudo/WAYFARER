@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "WayfarerNugenOutputContract",
+  "description": "Structured domain output contract produced by the WAYFARER Weather-Aware Adaptive Travel Intelligence Model aligned with Nugen",
+  "type": "object",
+  "required": [
+    "riskLevel",
+    "primaryImpact",
+    "routeRecommendation",
+    "accessibilityImpact",
+    "estimatedEtaDeltaMinutes",
+    "predictedJourneyHealth",
+    "confidence",
+    "modelSource"
+  ],
+  "properties": {
+    "riskLevel": {
+      "type": "string",
+      "enum": ["LOW", "MEDIUM", "HIGH", "CRITICAL"]
+    },
+    "primaryImpact": {
+      "type": "string",
+      "enum": [
+        "NONE",
+        "ETA_DEGRADATION",
+        "SAFETY",
+        "ACCESSIBILITY",
+        "FLOODING",
+        "TRANSIT",
+        "COMFORT",
+        "HOSPITALITY_DEMAND"
+      ]
+    },
+    "affectedEntities": {
+      "type": "array",
+      "items": { "type": "string" },
+      "default": []
+    },
+    "predictedImpacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["type", "probability"],
+        "properties": {
+          "type": { "type": "string" },
+          "probability": { "type": "number", "minimum": 0, "maximum": 1 },
+          "expectedMagnitude": { "type": "string" }
+        }
+      },
+      "default": []
+    },
+    "routeRecommendation": {
+      "type": "string",
+      "enum": ["CONTINUE", "MONITOR", "WARN", "REROUTE", "AVOID_SEGMENT"]
+    },
+    "accessibilityImpact": {
+      "type": "string",
+      "enum": ["NONE", "LOW", "MEDIUM", "HIGH", "CRITICAL"]
+    },
+    "estimatedEtaDeltaMinutes": {
+      "type": "number"
+    },
+    "predictedJourneyHealth": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 100
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "uncertainty": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 0.1
+    },
+    "reasoning": {
+      "type": "string"
+    },
+    "modelSource": {
+      "type": "string",
+      "default": "NUGEN_ALIGNED_WAYFARER_MODEL"
+    }
+  }
+}

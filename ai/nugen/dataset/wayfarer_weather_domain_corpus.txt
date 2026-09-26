@@ -1,0 +1,59 @@
+================================================================================
+WAYFARER AI: WEATHER-AWARE ADAPTIVE TRAVEL DOMAIN INTELLIGENCE CORPUS
+================================================================================
+
+1. DOMAIN OBJECTIVE & PROBLEM FORMULATION
+General-purpose language models fail in mission-critical adaptive travel because they lack domain-specific physical reasoning about how environmental stress couples into urban infrastructure and personalized traveler vulnerability. 
+When 30mm/h rain strikes an urban corridor:
+- A standard pedestrian experiences minor discomfort and delays.
+- A senior traveler faces slip-and-fall hazards on wet basalt flagstones.
+- A power wheelchair user experiences complete mobility failure because curb ramps submerge under water, rendering the path physically impassable.
+The WAYFARER Weather-Aware Adaptive Travel Intelligence Model is aligned to solve this exact domain problem: predicting physical and operational impacts, quantifying cascading effects, and recommending deterministic mitigations.
+
+2. METEOROLOGICAL THRESHOLDS & SURFACE PHYSICS
+- Rain Intensity Classification:
+  * 0.0 to 0.1 mm/h: NONE (Dry pavement, road friction factor = 1.00)
+  * 0.1 to 2.5 mm/h: LIGHT (Damp surface, road friction factor = 0.90 to 0.95)
+  * 2.5 to 7.6 mm/h: MODERATE (Water accumulation 2-8mm, road friction = 0.80)
+  * 7.6 to 50.0 mm/h: HEAVY (Water accumulation 10-30mm, road friction = 0.60, traffic slowdown = 1.5x)
+  * > 50.0 mm/h: TORRENTIAL (Water accumulation > 35mm, road friction = 0.40, flood risk > 80%, traffic slowdown = 2.2x)
+- Elevation & Micro-Zone Drainage:
+  * Low Coastal (e.g., Marine Drive Promenade): 50% drainage efficiency, extreme vulnerability to astronomical high tide and sea spray.
+  * Medium Heritage (e.g., Colaba Causeway): 80% drainage efficiency, uneven paving stones prone to puddle pooling.
+  * Elevated Ridge (e.g., Churchgate Elevated Spine): 90% drainage efficiency, step-free covered arcades, minimal waterlogging risk.
+
+3. TRAVELER MOBILITY VULNERABILITY MATRIX
+- Wheelchair Users (Power & Manual):
+  * Hard Constraints: Zero stairs permitted, step-free access mandatory.
+  * Environmental Sensitivity: CRITICAL. Any surface water accumulation exceeding 15mm or flood probability > 40% degrades accessibility by 50-70%. Submerged curb cuts make sidewalk transition physically impossible.
+  * Prescribed Action: Immediate REROUTE to elevated or covered transit spine.
+- Senior Travelers & Limited Walking Tolerance:
+  * Environmental Sensitivity: HIGH. Wet basalt tiles and heavy rain increase slip probability by 400%.
+  * Prescribed Action: WARN or REROUTE via low-stress electric bus transit.
+- Standard Travelers:
+  * Environmental Sensitivity: MODERATE. Tolerates rain with umbrella; primary impact is transit delays and ETA increases.
+
+4. MULTI-ENTITY CASCADING EFFECTS & HOSPITALITY DYNAMICS
+A storm does not merely affect a road; it triggers a cascade across the urban ecosystem:
+- Transportation: Suburban rail signal failures (+15-25m delay), cab surge pricing (+45%), waterway ferry service complete suspension when wind > 35 km/h.
+- Hospitality: Hotel lobbies near affected corridors experience a +38% to +65% surge in shelter demand. Cafes and tea lounges with indoor seating are dynamically designated as temporary dry waiting zones.
+- Cultural Anchors & Attractions: Outdoor attractions (Gateway of India, Marine Drive) experience a -85% drop in visit viability; indoor climate-controlled institutions (CSMVS Museum, National Gallery) surge +75% in suitability.
+
+5. TRUSTSHIELD SOCIAL EVIDENCE FUSION INTEGRATION
+Before environmental reports influence domain inference, they must pass through TrustShield:
+- Tier 1: Evidence Confidence (source credibility, official authority badges, temporal freshness decay, cross-subnet independent confirmations).
+- Tier 2: Impact Confidence (spatial proximity to traveler route, environmental severity).
+- Tier 3: Action Confidence (certainty that adaptation is required).
+A single uncorroborated social report must NEVER trigger route mutation; it results strictly in MONITOR.
+
+6. DECISION TAXONOMY & SAFETY POLICIES
+- CONTINUE: Optimal conditions, zero unmitigated obstacles, Journey Health >= 90.
+- MONITOR: Advisory or low-confidence anomaly detected; route preserved.
+- WARN: Non-critical degradation (rain spray, 10m traffic delay); advisory displayed.
+- REROUTE: Hard constraint violation, wheelchair curb submersion, or flood probability > 60%; alternative candidate route promoted.
+- AVOID_SEGMENT: Complete police cordoning or physical road closure.
+
+7. JOURNEY HEALTH RESPONSE LIFECYCLE
+- Optimal Baseline: 91★ across accessibility, safety, reliability, punctuality, comfort, and resilience.
+- Unmitigated Environmental Collapse: During heavy flooding, health plummets to 57★ (Accessibility = 38, Safety = 60).
+- AI Adaptive Recovery: Upon promoting Route C, health recovers to 86★ (Step-free guaranteed, delay mitigated by 65%).

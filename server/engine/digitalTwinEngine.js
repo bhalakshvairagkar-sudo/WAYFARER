@@ -25,6 +25,7 @@ import { calculateJourneyHealth } from "./journeyHealthEngine.js";
 import { rankSegmentRoutes, deriveTravelerWeights } from "./scoringEngine.js";
 import { DEFAULT_TRIP, DEFAULT_TRAVELER, DEFAULT_STOPS } from "../data/defaultJourney.js";
 import { segmentJourney } from "./journeySegmenter.js";
+import { predictDomainImpact, normalizeNugenInput } from "../services/nugenWayfarerModel.js";
 
 // Canonical What-If Scenarios
 export const PREBAKED_SCENARIOS = [
@@ -213,6 +214,53 @@ export async function buildDigitalTwinState(options = {}) {
     ? Math.round((socialSignals.reduce((acc, s) => acc + s.trustShield.actionConfidence, 0) / socialSignals.length) * 100) / 100
     : 0.82;
 
+  // 9. Nugen Domain Intelligence Prediction
+  const nugenInput = normalizeNugenInput({
+    weather: {
+      temperatureC: weatherState.temperature,
+      feelsLikeC: weatherState.feelsLike,
+      rainfallMmPerHour: weatherState.precipitationMm,
+      precipitationMm: weatherState.precipitationMm,
+      humidity: weatherState.humidity,
+      windSpeedKmh: weatherState.windSpeed,
+      visibilityKm: weatherState.visibilityKm,
+      condition: weatherState.condition
+    },
+    traveler: {
+      mobility: traveler.mobilityLevel || "STANDARD",
+      stepFreeRequired: Boolean(traveler.requiresWheelchairAccess || traveler.stepFreeRequired),
+      stairsAllowed: traveler.stairsAllowed !== undefined ? Boolean(traveler.stairsAllowed) : true,
+      walkingTolerance: traveler.walkingPace === "SLOW" ? "LOW" : "MEDIUM",
+      comfortPriority: "HIGH",
+      safetyPriority: "HIGH"
+    },
+    route: {
+      routeId: primarySegId,
+      corridorId: primarySegId,
+      corridorName: segments[0]?.from || "Heritage Corridor",
+      elevation: (segments[0]?.elevationMeters && segments[0]?.elevationMeters > 8) ? "ELEVATED_RIDGE" : "MEDIUM"
+    },
+    environment: {
+      surfaceWaterRisk: (surfaceState.floodProbability || 0) / 100,
+      waterAccumulationMm: surfaceState.waterAccumulationMm || 0,
+      floodRisk: (surfaceState.floodProbability || 0) / 100,
+      surfaceWetness: surfaceState.surfaceWetness || "DRY",
+      trafficSlowdownMultiplier: surfaceState.trafficSlowdownMultiplier || 1.0
+    },
+    socialEvidence: {
+      confidence: avgEvidenceConf,
+      floodingReports: socialSignals.filter(s => s.type === "FLOOD" || s.type === "WATERLOGGING").length,
+      independentSources: socialSignals.length
+    },
+    journeyHealth: weatherHealth,
+    digitalTwin: {
+      mode: simulationMode ? "SIMULATION" : "REAL",
+      provenance: simulationMode ? "SIMULATED" : weatherState.provenance
+    }
+  });
+
+  const nugenPrediction = await predictDomainImpact(nugenInput);
+
   return {
     twinId: `twin-${simulationMode ? "sim" : "live"}-${Date.now()}`,
     timestamp: new Date().toISOString(),
@@ -233,11 +281,13 @@ export async function buildDigitalTwinState(options = {}) {
     shelterDemandIndex: multiEntity.shelterDemandIndex,
     activeIncidents: socialSignals.filter(s => s.trustShield.actionConfidence >= 0.50),
     cascadingEffects,
+    nugenPrediction,
     confidence: {
       evidenceConfidence: avgEvidenceConf,
       impactConfidence: avgImpactConf,
       actionConfidence: avgActionConf,
-      modelAccuracy: 0.93 // MODELLED
+      modelAccuracy: 0.93, // MODELLED
+      nugenConfidence: nugenPrediction.confidence
     },
     predictedImpacts: {
       etaDelayMinutes: evaluatedSegments.reduce((sum, s) => sum + (s.weatherAdjustedDurationMin - s.baseDurationMin), 0),
@@ -329,6 +379,13 @@ export async function runWhatIfSimulation(journeyState = {}, whatIfParams = {}) 
         whatIfSimulated: `${simulatedTwin.shelterDemandIndex}% (Surge)`,
         adaptedMitigation: `Indoor Anchors Pre-reserved`,
         provenance: "MODELLED"
+      },
+      {
+        dimension: "Nugen Aligned AI Recommendation",
+        currentLive: `${liveTwin.nugenPrediction?.routeRecommendation || "CONTINUE"} (Risk: ${liveTwin.nugenPrediction?.riskLevel || "LOW"})`,
+        whatIfSimulated: `${simulatedTwin.nugenPrediction?.routeRecommendation || "WARN"} (Risk: ${simulatedTwin.nugenPrediction?.riskLevel || "HIGH"})`,
+        adaptedMitigation: `CONTINUE (Inland Elevated Spine)`,
+        provenance: simulatedTwin.nugenPrediction?.modelSource || "NUGEN_ALIGNED_MODEL"
       }
     ],
     signatureStory: `${liveTwin.journeyHealth.overall} (Optimal) → ${simulatedTwin.journeyHealth.overall} (Weather Collapse) → ${adaptedHealth.overall} (AI Adapted Recovery)`,
@@ -342,6 +399,8 @@ export async function runWhatIfSimulation(journeyState = {}, whatIfParams = {}) 
     liveTwin,
     simulatedTwin,
     adaptedHealth,
+    nugenLivePrediction: liveTwin.nugenPrediction,
+    nugenSimulatedPrediction: simulatedTwin.nugenPrediction,
     comparison
   };
 }

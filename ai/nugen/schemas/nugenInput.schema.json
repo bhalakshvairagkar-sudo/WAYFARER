@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "WayfarerNugenInputContract",
+  "description": "Structured domain input contract for the WAYFARER Weather-Aware Adaptive Travel Intelligence Model aligned with Nugen",
+  "type": "object",
+  "required": ["weather", "traveler", "route", "environment", "digitalTwin"],
+  "properties": {
+    "weather": {
+      "type": "object",
+      "required": ["temperatureC", "rainfallMmPerHour", "condition"],
+      "properties": {
+        "temperatureC": { "type": "number" },
+        "feelsLikeC": { "type": "number" },
+        "rainfallMmPerHour": { "type": "number", "minimum": 0 },
+        "precipitationMm": { "type": "number", "minimum": 0 },
+        "humidity": { "type": "number", "minimum": 0, "maximum": 100 },
+        "windSpeedKmh": { "type": "number", "minimum": 0 },
+        "visibilityKm": { "type": "number", "minimum": 0 },
+        "weatherCode": { "type": "integer" },
+        "condition": {
+          "type": "string",
+          "enum": ["CLEAR", "PARTLY_CLOUDY", "OVERCAST", "DRIZZLE", "LIGHT_RAIN", "MODERATE_RAIN", "HEAVY_RAIN", "TORRENTIAL_RAIN", "THUNDERSTORM", "HEATWAVE"]
+        },
+        "forecastHours": { "type": "number", "default": 2 }
+      }
+    },
+    "traveler": {
+      "type": "object",
+      "required": ["mobility"],
+      "properties": {
+        "mobility": {
+          "type": "string",
+          "enum": ["STANDARD", "WHEELCHAIR", "SENIOR", "STROLLER", "VISUALLY_IMPAIRED"]
+        },
+        "stepFreeRequired": { "type": "boolean", "default": false },
+        "stairsAllowed": { "type": "boolean", "default": true },
+        "walkingTolerance": {
+          "type": "string",
+          "enum": ["LOW", "MEDIUM", "HIGH"],
+          "default": "MEDIUM"
+        },
+        "comfortPriority": {
+          "type": "string",
+          "enum": ["LOW", "MEDIUM", "HIGH"],
+          "default": "MEDIUM"
+        },
+        "safetyPriority": {
+          "type": "string",
+          "enum": ["LOW", "MEDIUM", "HIGH"],
+          "default": "HIGH"
+        }
+      }
+    },
+    "route": {
+      "type": "object",
+      "required": ["routeId"],
+      "properties": {
+        "routeId": { "type": "string" },
+        "corridorId": { "type": "string" },
+        "corridorName": { "type": "string" },
+        "etaMinutes": { "type": "number" },
+        "walkingDistanceMeters": { "type": "number" },
+        "floodProneSegments": { "type": "integer", "default": 0 },
+        "exposedSegments": { "type": "integer", "default": 0 },
+        "accessibleSegments": { "type": "integer", "default": 0 },
+        "elevation": {
+          "type": "string",
+          "enum": ["LOW_COASTAL", "LOW_MEDIUM", "MEDIUM", "ELEVATED_RIDGE"],
+          "default": "MEDIUM"
+        }
+      }
+    },
+    "environment": {
+      "type": "object",
+      "required": ["floodRisk"],
+      "properties": {
+        "surfaceWaterRisk": { "type": "number", "minimum": 0, "maximum": 1 },
+        "waterAccumulationMm": { "type": "number", "minimum": 0 },
+        "floodRisk": { "type": "number", "minimum": 0, "maximum": 1 },
+        "surfaceWetness": {
+          "type": "string",
+          "enum": ["DRY", "DAMP", "WATERLOGGED", "FLOODED"]
+        },
+        "trafficFriction": { "type": "number", "minimum": 0, "maximum": 1 },
+        "trafficSlowdownMultiplier": { "type": "number", "minimum": 1.0 }
+      }
+    },
+    "socialEvidence": {
+      "type": "object",
+      "properties": {
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "floodingReports": { "type": "integer", "default": 0 },
+        "independentSources": { "type": "integer", "default": 0 },
+        "contradictionScore": { "type": "number", "minimum": 0, "maximum": 1, "default": 0 },
+        "sourceTrustLevel": {
+          "type": "string",
+          "enum": ["OFFICIAL_POLICE", "VERIFIED_TRANSIT", "COMMUNITY_CONSENSUS", "UNVERIFIED_SINGLE", "SUSPECT_SPAM"],
+          "default": "COMMUNITY_CONSENSUS"
+        }
+      }
+    },
+    "journeyHealth": {
+      "type": "object",
+      "properties": {
+        "current": { "type": "number", "minimum": 0, "maximum": 100 },
+        "safety": { "type": "number", "minimum": 0, "maximum": 100 },
+        "accessibility": { "type": "number", "minimum": 0, "maximum": 100 },
+        "reliability": { "type": "number", "minimum": 0, "maximum": 100 },
+        "comfort": { "type": "number", "minimum": 0, "maximum": 100 },
+        "timeEfficiency": { "type": "number", "minimum": 0, "maximum": 100 }
+      }
+    },
+    "digitalTwin": {
+      "type": "object",
+      "required": ["mode"],
+      "properties": {
+        "mode": { "type": "string", "enum": ["REAL", "SIMULATION"] },
+        "provenance": { "type": "string", "enum": ["LIVE", "SIMULATED", "FORECAST", "MODELLED"] }
+      }
+    }
+  }
+}

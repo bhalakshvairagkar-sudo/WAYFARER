@@ -28,6 +28,7 @@ import {
   simulateWhatIf,
   getPrebakedScenarios
 } from '../../services/digitalTwinService.js';
+import NugenDomainPanel from './NugenDomainPanel.jsx';
 
 export default function DigitalTwinWidget({
   journeyState,
@@ -240,6 +241,11 @@ export default function DigitalTwinWidget({
             </div>
           </div>
         </div>
+      </div>
+
+      {/* ─── NUGEN DOMAIN INTELLIGENCE PANEL ─── */}
+      <div className="p-4 sm:p-5 border-b border-slate-200/90 bg-slate-950">
+        <NugenDomainPanel twinData={currentTwin} isSimulating={isSimulating} />
       </div>
 
       {/* ─── 2. WHAT-IF SCENARIO SIMULATOR PANEL ─── */}
