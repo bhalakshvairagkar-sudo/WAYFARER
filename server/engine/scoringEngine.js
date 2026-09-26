@@ -178,13 +178,164 @@ export function calculateRouteScore(routeCandidate, weights) {
 }
 
 /**
+ * Extract hard constraints and preferences separately from traveler profile.
+ * Hard constraints represent absolute requirements (e.g. stairsAllowed: false)
+ * that eliminate infeasible routes, distinct from preference weights.
+ * @param {Object} traveler 
+ * @returns {Object} Extracted hard constraints
+ */
+export function extractHardConstraints(traveler = {}) {
+  if (!traveler) return {};
+  const mobility = (traveler.mobility || "").toLowerCase();
+  const isWheelchair = mobility.includes("wheelchair") || mobility.includes("power_wheelchair");
+
+  const acc = traveler.accessibility || {};
+  
+  const stairsAllowed = acc.stairsAllowed !== undefined
+    ? acc.stairsAllowed
+    : (traveler.stairsAllowed !== undefined ? traveler.stairsAllowed : (isWheelchair ? false : true));
+
+  const stepFreeRequired = acc.stepFreeRequired !== undefined
+    ? acc.stepFreeRequired
+    : (traveler.stepFreeRequired !== undefined ? traveler.stepFreeRequired : (isWheelchair ? true : false));
+
+  const elevatorRequired = acc.elevatorRequired !== undefined
+    ? acc.elevatorRequired
+    : (traveler.elevatorRequired !== undefined ? traveler.elevatorRequired : (isWheelchair ? true : false));
+
+  const rampRequired = acc.rampRequired !== undefined
+    ? acc.rampRequired
+    : (traveler.rampRequired !== undefined ? traveler.rampRequired : (traveler.rampsPreferred || false));
+
+  const maxWalkDistanceKm = traveler.constraints?.maxWalkDistanceKm || traveler.maxWalkDistanceKm || null;
+  const arrivalDeadline = traveler.constraints?.arrivalDeadline || traveler.arrivalDeadline || null;
+
+  return {
+    isWheelchair,
+    stairsAllowed,
+    stepFreeRequired,
+    elevatorRequired,
+    rampRequired,
+    maxWalkDistanceKm,
+    arrivalDeadline
+  };
+}
+
+/**
+ * Validates a single candidate route against traveler hard constraints.
+ * @param {Object} route 
+ * @param {Object} travelerOrConstraints 
+ * @returns {Object} { valid: boolean, violations: string[] }
+ */
+export function validateRouteConstraints(route, travelerOrConstraints = {}) {
+  if (!route) return { valid: false, violations: ["Route is undefined"] };
+
+  const constraints = (travelerOrConstraints.isWheelchair !== undefined || travelerOrConstraints.stairsAllowed !== undefined)
+    ? travelerOrConstraints
+    : extractHardConstraints(travelerOrConstraints);
+
+  const violations = [];
+  const features = (route.accessibleFeatures || []).join(" ").toLowerCase();
+  const routeName = (route.name || "").toLowerCase();
+  const routeTagline = (route.tagline || "").toLowerCase();
+  const allText = `${routeName} ${routeTagline} ${features}`;
+
+  // 1. Stairs Check
+  const hasStairsPattern = /\b(stairs|steps|stairway|staircase|flight of steps|steep steps|cobblestone stairs)\b/i;
+  const negatesStairsPattern = /\b(no steps|zero steps|step-free|step free|without stairs|no stairs)\b/i;
+  const routeHasStairs = route.hasStairs === true || (hasStairsPattern.test(allText) && !negatesStairsPattern.test(allText));
+
+  if (constraints.stairsAllowed === false && routeHasStairs) {
+    violations.push("Route contains stairs/steps, violating traveler's step-free constraint");
+  }
+
+  // 2. Step-Free Requirement
+  const isStepFree = route.isStepFree === true || route.stepFree === true ||
+    negatesStairsPattern.test(allText) ||
+    /step-free ramped access|100% step-free|continuous.*ramp/i.test(allText);
+
+  if (constraints.stepFreeRequired) {
+    if (route.isStepFree === false || route.stepFree === false) {
+      violations.push("Route is marked as not step-free");
+    } else if (routeHasStairs && !isStepFree) {
+      violations.push("Route lacks continuous step-free access");
+    }
+  }
+
+  // 3. Elevator Requirement & Active Outage Disruption
+  const hasActiveElevatorDisruption = (
+    (route.activeEvent?.type === "ACCESSIBILITY_DEGRADATION" || route.activeEvent?.type === "ELEVATOR_OUTAGE") &&
+    /elevator|lift/i.test(route.activeEvent.reason || route.activeEvent.note || "")
+  ) || route.elevatorFailure === true;
+
+  const elevatorUnavailable = route.elevatorAvailable === false || hasActiveElevatorDisruption;
+
+  if (constraints.elevatorRequired && elevatorUnavailable) {
+    violations.push("Required elevator is unavailable or out of service on this route");
+  }
+
+  // 4. Wheelchair Safe Mobility Accessibility Threshold (score < 50)
+  if (constraints.isWheelchair && route.accessibility !== undefined && route.accessibility < 50) {
+    violations.push(`Route accessibility (${route.accessibility}/100) is below safe wheelchair mobility threshold (50)`);
+  }
+
+  // 5. Walking Distance Constraint
+  if (constraints.maxWalkDistanceKm && route.distanceKm && route.distanceKm > constraints.maxWalkDistanceKm) {
+    violations.push(`Route distance (${route.distanceKm} km) exceeds maximum walking tolerance (${constraints.maxWalkDistanceKm} km)`);
+  }
+
+  return {
+    valid: violations.length === 0,
+    violations
+  };
+}
+
+/**
+ * Filter route candidates down to strictly valid routes that satisfy all hard constraints.
+ * Implements the Route Candidates -> Constraint Validator -> Valid routes pipeline.
+ * @param {Array} candidateRoutes 
+ * @param {Object} travelerOrConstraints 
+ * @returns {Array} Strictly valid candidate routes
+ */
+export function filterValidRoutes(candidateRoutes = [], travelerOrConstraints = {}) {
+  if (!candidateRoutes || candidateRoutes.length === 0) return [];
+  const constraints = (travelerOrConstraints.isWheelchair !== undefined || travelerOrConstraints.stairsAllowed !== undefined)
+    ? travelerOrConstraints
+    : extractHardConstraints(travelerOrConstraints);
+
+  return candidateRoutes.filter(route => {
+    const result = validateRouteConstraints(route, constraints);
+    return result.valid;
+  });
+}
+
+/**
  * Rank candidate routes for a given segment and assign recommendation.
+ * Routes violating hard constraints are eliminated from recommendation eligibility.
  * @param {Array} candidateRoutes 
  * @param {Object} weights 
- * @returns {Array} Ranked candidate routes with scores
+ * @param {Object} [traveler] Optional traveler profile to validate hard constraints
+ * @returns {Array} Ranked candidate routes with scores and validity flags
  */
-export function rankSegmentRoutes(candidateRoutes = [], weights) {
-  const scoredRoutes = candidateRoutes.map(route => {
+export function rankSegmentRoutes(candidateRoutes = [], weights, traveler = null) {
+  const constraints = traveler ? extractHardConstraints(traveler) : null;
+
+  // Step 1: Constraint Validation
+  const routesWithConstraints = candidateRoutes.map(route => {
+    if (!constraints) {
+      return { ...route, isFeasible: true, isEliminated: false, violations: [] };
+    }
+    const validation = validateRouteConstraints(route, constraints);
+    return {
+      ...route,
+      isFeasible: validation.valid,
+      isEliminated: !validation.valid,
+      violations: validation.violations
+    };
+  });
+
+  // Step 2: 5-Factor Scoring
+  const scoredRoutes = routesWithConstraints.map(route => {
     const scoreResult = calculateRouteScore(route, weights);
     return {
       ...route,
@@ -194,17 +345,22 @@ export function rankSegmentRoutes(candidateRoutes = [], weights) {
     };
   });
 
-  // Sort descending by composite score, then by accessibility, then convenience
+  // Step 3: Ranking - Feasible routes always rank above eliminated routes
   scoredRoutes.sort((a, b) => {
+    if (a.isFeasible !== b.isFeasible) {
+      return a.isFeasible ? -1 : 1;
+    }
     if (b.score !== a.score) return b.score - a.score;
     if (b.accessibility !== a.accessibility) return (b.accessibility || 0) - (a.accessibility || 0);
     return (b.convenience || 0) - (a.convenience || 0);
   });
 
-  // Assign recommended tag to the highest scoring route
+  // Step 4: Assign recommendation - Only the highest scoring FEASIBLE route is recommended
+  const firstFeasibleIndex = scoredRoutes.findIndex(r => r.isFeasible);
+
   return scoredRoutes.map((route, index) => ({
     ...route,
-    isRecommended: index === 0,
+    isRecommended: route.isFeasible && index === firstFeasibleIndex,
     rank: index + 1
   }));
 }
@@ -242,12 +398,12 @@ export function generateScoreBreakdown(candidateRoutes = [], weights) {
  * @param {Object} weights 
  * @returns {Object} Structured explanation { recommended, rejected: [] }
  */
-export function generateWhyNotExplanation(candidateRoutes = [], weights) {
+export function generateWhyNotExplanation(candidateRoutes = [], weights, traveler = null) {
   if (!candidateRoutes || candidateRoutes.length === 0) return { recommended: null, rejected: [] };
 
-  const scoredRoutes = rankSegmentRoutes(candidateRoutes, weights);
-  const recommended = scoredRoutes[0];
-  const rejected = scoredRoutes.slice(1);
+  const scoredRoutes = rankSegmentRoutes(candidateRoutes, weights, traveler);
+  const recommended = scoredRoutes.find(r => r.isRecommended) || scoredRoutes[0];
+  const rejected = scoredRoutes.filter(r => r.id !== recommended?.id);
 
   const getStrengths = (route) => {
     let strengths = [];
@@ -264,11 +420,18 @@ export function generateWhyNotExplanation(candidateRoutes = [], weights) {
 
   const getReasons = (route, recommendedRoute) => {
     let reasons = [];
+
+    // If route was eliminated by hard constraint validator, that is the primary reason
+    if (route.isEliminated && route.violations && route.violations.length > 0) {
+      route.violations.forEach(v => reasons.push(`HARD CONSTRAINT VIOLATION: ${v}`));
+      return reasons;
+    }
+
     const factors = ['accessibility', 'safety', 'crowd', 'convenience', 'cost'];
     
     factors.forEach(factor => {
       const val = route[factor] || 70;
-      const recVal = recommendedRoute[factor] || 70;
+      const recVal = recommendedRoute ? (recommendedRoute[factor] || 70) : 70;
       
       if (factor === 'accessibility' && val < 80) {
         reasons.push(`Accessibility: ${val} — well below wheelchair threshold of 80`);
@@ -285,7 +448,7 @@ export function generateWhyNotExplanation(candidateRoutes = [], weights) {
       reasons.push('Critical step-free path dependency broken');
     }
 
-    if (reasons.length === 0) {
+    if (reasons.length === 0 && recommendedRoute) {
       reasons.push(`Overall composite score lower than recommended route (${route.score} vs ${recommendedRoute.score})`);
     }
 
@@ -303,6 +466,8 @@ export function generateWhyNotExplanation(candidateRoutes = [], weights) {
       routeId: route.id,
       routeName: route.name,
       score: route.score,
+      isEliminated: Boolean(route.isEliminated),
+      violations: route.violations || [],
       reasons: getReasons(route, recommended)
     }))
   };
