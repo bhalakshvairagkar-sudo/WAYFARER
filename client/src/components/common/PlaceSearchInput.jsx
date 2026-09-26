@@ -132,9 +132,13 @@ export default function PlaceSearchInput({
         ) : null}
       </div>
 
-      {/* Autocomplete Dropdown */}
+      {/* Autocomplete Dropdown with Maximum India Locations */}
       {isOpen && suggestions.length > 0 && (
-        <div className="absolute z-50 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-60 overflow-y-auto divide-y divide-slate-100">
+        <div className="absolute z-50 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-2xl max-h-80 overflow-y-auto divide-y divide-slate-100">
+          <div className="px-3.5 py-1.5 bg-slate-50/80 border-b border-slate-100 flex items-center justify-between text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+            <span>Locations Found ({suggestions.length})</span>
+            <span className="text-brand-600">Nationwide India Coverage</span>
+          </div>
           {suggestions.map((item, idx) => (
             <button
               key={item.placeId || idx}
@@ -148,9 +152,16 @@ export default function PlaceSearchInput({
                   <span className="font-bold text-xs text-slate-900 truncate">
                     {item.name}
                   </span>
-                  <span className="text-[9px] font-semibold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded uppercase">
-                    {item.provider === 'GOOGLE_PLACES' ? 'Google' : item.provider === 'OSM_NOMINATIM' ? 'India Live' : 'Hub'}
-                  </span>
+                  <div className="flex items-center gap-1 shrink-0">
+                    {item.state && (
+                      <span className="text-[9px] font-medium text-slate-400 hidden sm:inline">
+                        {item.state}
+                      </span>
+                    )}
+                    <span className="text-[9px] font-semibold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded uppercase">
+                      {item.provider === 'GOOGLE_PLACES' ? 'Google' : item.provider === 'OSM_NOMINATIM' ? 'India Live' : item.category || 'Hub'}
+                    </span>
+                  </div>
                 </div>
                 <p className="text-[11px] text-slate-500 truncate">
                   {item.formattedAddress}

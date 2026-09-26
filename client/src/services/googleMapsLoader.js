@@ -17,11 +17,40 @@ export function getGoogleMapsApiKey() {
   if (dynamicApiKey && dynamicApiKey !== '' && dynamicApiKey.toLowerCase() !== 'your_google_maps_api_key_here') {
     return dynamicApiKey;
   }
+  if (typeof window !== 'undefined' && window.localStorage) {
+    const stored = window.localStorage.getItem('wayfarer_google_maps_api_key');
+    if (stored && stored.trim() !== '' && stored.toLowerCase() !== 'your_google_maps_api_key_here') {
+      return stored.trim();
+    }
+  }
   const viteKey = (import.meta.env && import.meta.env.VITE_GOOGLE_MAPS_API_KEY) || '';
   if (viteKey && viteKey.trim() !== '' && viteKey.toLowerCase() !== 'your_google_maps_api_key_here') {
     return viteKey.trim();
   }
   return '';
+}
+
+export function saveGoogleMapsApiKey(key) {
+  const cleanKey = (key || '').trim();
+  if (typeof window !== 'undefined' && window.localStorage) {
+    if (cleanKey && cleanKey.toLowerCase() !== 'your_google_maps_api_key_here') {
+      window.localStorage.setItem('wayfarer_google_maps_api_key', cleanKey);
+      setGoogleMapsApiKey(cleanKey);
+    } else {
+      window.localStorage.removeItem('wayfarer_google_maps_api_key');
+      setGoogleMapsApiKey('');
+    }
+  }
+  // Reset promise so reloaded script uses the new key
+  googleMapsPromise = null;
+  // Also sync to backend environment
+  try {
+    fetch('/api/config/maps', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ apiKey: cleanKey })
+    }).catch(() => {});
+  } catch (e) {}
 }
 
 export function isGoogleMapsConfigured() {

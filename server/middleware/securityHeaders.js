@@ -31,7 +31,9 @@ export const configureSecurityHeaders = () => {
           'https://*.basemaps.cartocdn.com',
           'https://maps.googleapis.com',
           'https://maps.gstatic.com',
-          'https://*.google.com'
+          'https://*.google.com',
+          'https://*.googleapis.com',
+          'https://*.googleusercontent.com'
         ],
         connectSrc: [
           "'self'",
@@ -39,7 +41,8 @@ export const configureSecurityHeaders = () => {
           'ws://localhost:*',
           'https://router.project-osrm.org',
           'https://generativelanguage.googleapis.com',
-          'https://maps.googleapis.com'
+          'https://maps.googleapis.com',
+          'https://nominatim.openstreetmap.org'
         ],
         fontSrc: ["'self'", 'https://fonts.gstatic.com', 'data:'],
         objectSrc: ["'none'"],

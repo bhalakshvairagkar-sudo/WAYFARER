@@ -153,13 +153,27 @@ const POPULAR_HUBS = [
 POPULAR_HUBS.forEach((hub) => placeCache.set(hub.placeId, hub));
 
 async function fallbackPlaceSearch(cleanQuery) {
+  // 1. Query Dedicated India Places Search Engine (Catalog + Nominatim + Cache)
+  try {
+    const res = await fetch(`/api/places/search?q=${encodeURIComponent(cleanQuery)}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data?.results) && data.results.length > 0) {
+        data.results.forEach((item) => placeCache.set(item.placeId, item));
+        return data.results;
+      }
+    }
+  } catch (err) {
+    // Non-blocking fallback to direct browser fetch
+  }
+
   const localMatches = POPULAR_HUBS.filter(
     (h) => h.name.toLowerCase().includes(cleanQuery) || h.formattedAddress.toLowerCase().includes(cleanQuery)
   );
 
-  // Live real-time search across all of India using OpenStreetMap Nominatim
+  // 2. Direct browser fetch to OpenStreetMap Nominatim for India
   try {
-    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(cleanQuery)}&countrycodes=in&format=json&addressdetails=1&limit=8`;
+    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(cleanQuery)}&countrycodes=in&format=json&addressdetails=1&limit=15`;
     const res = await fetch(url, {
       headers: {
         'Accept': 'application/json'
@@ -175,6 +189,8 @@ async function fallbackPlaceSearch(cleanQuery) {
             placeId: `osm_${item.osm_type || 'node'}_${item.osm_id || item.place_id || idx}`,
             name: mainName,
             formattedAddress: item.display_name,
+            state: item.address?.state || 'India',
+            category: item.type || 'Location',
             lat: parseFloat(item.lat),
             lng: parseFloat(item.lon),
             provider: 'OSM_NOMINATIM'
@@ -191,7 +207,7 @@ async function fallbackPlaceSearch(cleanQuery) {
           }
         });
 
-        return combined.slice(0, 10);
+        return combined.slice(0, 15);
       }
     }
   } catch (err) {

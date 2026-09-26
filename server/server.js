@@ -22,6 +22,7 @@ import { securityLogger } from "./utils/securityLogger.js";
 import authRoutes from "./routes/authRoutes.js";
 import locationRoutes from "./routes/locationRoutes.js";
 import communityRoutes from "./routes/communityRoutes.js";
+import placeRoutes from "./routes/placeRoutes.js";
 import { Journey } from "./models/Journey.js";
 
 import { DEFAULT_TRIP, DEFAULT_TRAVELER, DEFAULT_STOPS } from "./data/defaultJourney.js";
@@ -103,6 +104,20 @@ app.get("/api/config/maps", (req, res) => {
   });
 });
 
+app.post("/api/config/maps", (req, res) => {
+  const { apiKey } = req.body || {};
+  if (typeof apiKey === "string") {
+    const cleanKey = apiKey.trim();
+    process.env.VITE_GOOGLE_MAPS_API_KEY = cleanKey;
+    process.env.GOOGLE_MAPS_API_KEY = cleanKey;
+    return res.json({
+      success: true,
+      configured: Boolean(cleanKey && cleanKey.toLowerCase() !== "your_google_maps_api_key_here")
+    });
+  }
+  res.status(400).json({ error: "Invalid apiKey format" });
+});
+
 // 7. Mount Authentication & Profile Routes
 app.use("/api/auth", authRoutes);
 
@@ -111,6 +126,9 @@ app.use("/api/location", locationRoutes);
 
 // 9. Mount Community Report & Evidence Fusion Routes
 app.use("/api/community", communityRoutes);
+
+// 10. Mount India Places & Geocoding Routes
+app.use("/api/places", placeRoutes);
 
 // 10. Default Preloaded Journey (Optional Auth: Supports Guest/Demo or Authenticated Traveler)
 app.get("/api/journey/default", optionalAuth, (req, res, next) => {

@@ -1,7 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Layers, Navigation, AlertCircle, Compass, MapPin, CheckCircle, Info } from 'lucide-react';
+import { Layers, Navigation, AlertCircle, Compass, MapPin, CheckCircle, Info, Key, Check, X } from 'lucide-react';
 import L from 'leaflet';
-import { isGoogleMapsConfigured, loadGoogleMapsScript, ensureMapsKeyLoaded } from '../../services/googleMapsLoader.js';
+import {
+  isGoogleMapsConfigured,
+  loadGoogleMapsScript,
+  ensureMapsKeyLoaded,
+  getGoogleMapsApiKey,
+  saveGoogleMapsApiKey
+} from '../../services/googleMapsLoader.js';
 import { updateUserLocation } from '../../services/api.js';
 
 export default function GoogleMap({
@@ -20,9 +26,14 @@ export default function GoogleMap({
   const googleMarkersRef = useRef([]);
   const leafletInstanceRef = useRef(null);
   const leafletLayerGroupRef = useRef(null);
+  const leafletTileLayerRef = useRef(null);
   const resizeObserverRef = useRef(null);
 
   const [mapType, setMapType] = useState(() => isGoogleMapsConfigured() ? 'CHECKING' : 'LEAFLET_FALLBACK');
+  const [tileMode, setTileMode] = useState('streets'); // 'streets' | 'satellite' | 'terrain'
+  const [showKeyModal, setShowKeyModal] = useState(false);
+  const [apiKeyInput, setApiKeyInput] = useState(() => getGoogleMapsApiKey());
+  const [keySaveStatus, setKeySaveStatus] = useState('');
   const [userLocation, setUserLocation] = useState(null);
   const [locationError, setLocationError] = useState(false);
 
@@ -286,15 +297,21 @@ export default function GoogleMap({
           attributionControl: false
         });
 
-        L.control.zoom({ position: 'topright' }).addTo(map);
+        // Authentic Google Maps tile layers across India
+        const googleTileUrls = {
+          streets: 'https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
+          satellite: 'https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
+          terrain: 'https://mt{s}.google.com/vt/lyrs=p&x={x}&y={y}&z={z}'
+        };
 
-        // OpenStreetMap tile layer (100% reliable, zero billing/block issues)
-        const tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          maxZoom: 19,
-          subdomains: ['a', 'b', 'c'],
-          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        const initialTileUrl = googleTileUrls[tileMode] || googleTileUrls.streets;
+        const tileLayer = L.tileLayer(initialTileUrl, {
+          maxZoom: 20,
+          subdomains: ['0', '1', '2', '3'],
+          attribution: '&copy; Google Maps'
         });
         tileLayer.addTo(map);
+        leafletTileLayerRef.current = tileLayer;
 
         const layerGroup = L.layerGroup().addTo(map);
         leafletLayerGroupRef.current = layerGroup;
@@ -434,21 +451,40 @@ export default function GoogleMap({
     }, 100);
   }, [mapType, activeSegment, selectedRouteId, userLocation, waypoints]);
 
+  // Synchronize Tile Mode across Google Maps SDK and Leaflet
+  useEffect(() => {
+    if (mapType === 'GOOGLE' && googleMapInstanceRef.current && window.google?.maps) {
+      const modeMap = {
+        streets: window.google.maps.MapTypeId.ROADMAP,
+        satellite: window.google.maps.MapTypeId.HYBRID,
+        terrain: window.google.maps.MapTypeId.TERRAIN
+      };
+      googleMapInstanceRef.current.setMapTypeId(modeMap[tileMode] || window.google.maps.MapTypeId.ROADMAP);
+    } else if (leafletInstanceRef.current && leafletTileLayerRef.current) {
+      const googleTileUrls = {
+        streets: 'https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
+        satellite: 'https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
+        terrain: 'https://mt{s}.google.com/vt/lyrs=p&x={x}&y={y}&z={z}'
+      };
+      leafletInstanceRef.current.removeLayer(leafletTileLayerRef.current);
+      const newLayer = L.tileLayer(googleTileUrls[tileMode] || googleTileUrls.streets, {
+        maxZoom: 20,
+        subdomains: ['0', '1', '2', '3'],
+        attribution: '&copy; Google Maps'
+      });
+      newLayer.addTo(leafletInstanceRef.current);
+      leafletTileLayerRef.current = newLayer;
+    }
+  }, [tileMode, mapType]);
+
   return (
     <div style={{ height: height === '100%' ? '100%' : 'auto' }} className={`relative rounded-2xl overflow-hidden border border-slate-200 shadow-soft bg-slate-100 ${className}`}>
       {/* Top Map Status Overlay */}
       <div className="absolute top-3 left-3 z-20 flex flex-wrap items-center gap-2 pointer-events-none">
-        {mapType === 'GOOGLE' ? (
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/95 text-slate-800 text-[11px] font-bold shadow-md border border-slate-200/80 backdrop-blur-xs">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            LIVE GOOGLE MAPS ROUTING
-          </span>
-        ) : (
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/95 text-slate-800 text-[11px] font-bold shadow-md border border-emerald-200/80 backdrop-blur-xs">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            LIVE MAP NAVIGATION
-          </span>
-        )}
+        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/95 text-slate-800 text-[11px] font-bold shadow-md border border-slate-200/80 backdrop-blur-xs">
+          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+          {mapType === 'GOOGLE' ? 'GOOGLE MAPS JS SDK • INDIA' : 'REAL GOOGLE MAPS • INDIA'}
+        </span>
 
         {activeSegment && (
           <span className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-900/80 text-white text-[10px] font-medium shadow-md backdrop-blur-xs">
@@ -456,6 +492,48 @@ export default function GoogleMap({
             {activeSegment.origin} → {activeSegment.destination}
           </span>
         )}
+      </div>
+
+      {/* Top Map Layer & Key Controls */}
+      <div className="absolute top-3 right-3 z-20 flex items-center gap-1 p-1 rounded-xl bg-white/95 border border-slate-200/90 shadow-md backdrop-blur-xs">
+        <button
+          type="button"
+          onClick={() => setTileMode('streets')}
+          className={`px-2 py-1 rounded-lg text-[10px] font-bold transition ${tileMode === 'streets' ? 'bg-brand-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'}`}
+        >
+          Streets
+        </button>
+        <button
+          type="button"
+          onClick={() => setTileMode('satellite')}
+          className={`px-2 py-1 rounded-lg text-[10px] font-bold transition ${tileMode === 'satellite' ? 'bg-brand-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'}`}
+        >
+          Satellite
+        </button>
+        <button
+          type="button"
+          onClick={() => setTileMode('terrain')}
+          className={`px-2 py-1 rounded-lg text-[10px] font-bold transition ${tileMode === 'terrain' ? 'bg-brand-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'}`}
+        >
+          Terrain
+        </button>
+        <div className="h-3.5 w-px bg-slate-200 mx-0.5"></div>
+        <button
+          type="button"
+          onClick={() => {
+            setApiKeyInput(getGoogleMapsApiKey());
+            setShowKeyModal(true);
+          }}
+          title="Configure Google Maps API Key"
+          className={`px-2 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 border transition ${
+            isGoogleMapsConfigured()
+              ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+              : 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
+          }`}
+        >
+          <Key className="w-3 h-3" />
+          <span className="hidden sm:inline">{isGoogleMapsConfigured() ? 'Key Active' : 'Set Key'}</span>
+        </button>
       </div>
 
       {/* Map Canvas */}
@@ -491,6 +569,97 @@ export default function GoogleMap({
           <span className="text-[10px] text-slate-500 font-medium hidden md:inline">
             Interactive Waypoints & Corridors
           </span>
+        </div>
+      )}
+
+      {/* Google Maps API Key Setup Modal */}
+      {showKeyModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-brand-50 text-brand-600">
+                  <Key className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-slate-900">Google Maps API Key Setup</h3>
+                  <p className="text-[11px] text-slate-500">Live Maps & Places across India</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowKeyModal(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-600 mb-3 leading-relaxed">
+              Real-time Google Maps (Streets, Satellite, Terrain) and nationwide India search are active. Enter your Google Cloud API key below to activate Google Maps JavaScript SDK & Google Places:
+            </p>
+
+            <input
+              type="text"
+              value={apiKeyInput}
+              onChange={(e) => setApiKeyInput(e.target.value)}
+              placeholder="Paste AIzaSy... API key here"
+              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500 mb-3"
+            />
+
+            {keySaveStatus && (
+              <p className="text-xs text-emerald-600 font-semibold mb-3 flex items-center gap-1.5">
+                <Check className="w-4 h-4" /> {keySaveStatus}
+              </p>
+            )}
+
+            <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => {
+                  saveGoogleMapsApiKey('');
+                  setApiKeyInput('');
+                  setKeySaveStatus('Key cleared. Google Maps active.');
+                  setTimeout(() => {
+                    setShowKeyModal(false);
+                    setKeySaveStatus('');
+                  }, 1000);
+                }}
+                className="px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-500 hover:bg-slate-100 transition"
+              >
+                Clear Key
+              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowKeyModal(false)}
+                  className="px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    saveGoogleMapsApiKey(apiKeyInput);
+                    setKeySaveStatus('Saved! Connecting Google Maps SDK...');
+                    setTimeout(async () => {
+                      setShowKeyModal(false);
+                      setKeySaveStatus('');
+                      try {
+                        const maps = await loadGoogleMapsScript();
+                        if (maps && maps.Map) {
+                          setMapType('GOOGLE');
+                        }
+                      } catch (e) {}
+                    }, 800);
+                  }}
+                  className="px-4 py-1.5 rounded-xl text-xs font-bold bg-brand-600 text-white hover:bg-brand-700 shadow-sm transition"
+                >
+                  Save & Connect
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>
