@@ -3,7 +3,7 @@ services:
     name: wayfarer-ai
     env: node
     plan: free
-    buildCommand: npm run install:all && npm --prefix client run build
+    buildCommand: npm --prefix client install --include=dev && npm --prefix server install && npm --prefix client run build
     startCommand: node server/server.js
     envVars:
       - key: PORT
