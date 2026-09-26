@@ -206,6 +206,177 @@ router.post("/incidents/:id/action", optionalAuth, (req, res) => {
 });
 
 /**
+ * POST /api/community/incidents/:id/confirm
+ * Traveler feedback on active incidents: "Is this still happening?"
+ * Supports: YES (confirms), NO (contradiction/challenge), NOT_SURE (neutral)
+ */
+router.post("/incidents/:id/confirm", optionalAuth, (req, res) => {
+  try {
+    const cluster = evidenceStore.getCluster(req.params.id);
+    if (!cluster) {
+      return res.status(404).json({ success: false, error: "Incident not found" });
+    }
+
+    const { answer = "YES", notes = "", location = null } = req.body;
+    const user = req.user;
+    const reporterId = user ? user.userId : `traveler-${Date.now()}`;
+    const reporterName = user ? user.name : "Wayfarer Traveler";
+    const reporterReputation = user ? 0.85 : 0.65;
+    const clientIp = req.ip || req.headers["x-forwarded-for"] || "127.0.0.1";
+
+    if (answer === "YES") {
+      // Confirmation: adds fresh corroborating report, resets freshness decay
+      const confirmReport = {
+        id: `rep-confirm-${Date.now()}`,
+        reporterId,
+        reporterName,
+        reporterReputation,
+        reporterLocation: location,
+        resourceId: cluster.resourceId,
+        eventType: cluster.eventType,
+        severity: cluster.reports[0]?.severity || 0.7,
+        description: notes || "Confirmed still active by traveler.",
+        mediaEvidence: { hasPhoto: false },
+        ipAddress: clientIp,
+        timestamp: new Date().toISOString(),
+        isSpam: false
+      };
+
+      cluster.reports.push(confirmReport);
+      cluster.lastReportedAt = new Date().toISOString();
+
+      const independence = analyzeIndependence(cluster);
+      cluster.independenceAnalysis = independence;
+      const fusion = fuseEvidence(cluster, independence);
+      cluster.evidenceFusion = fusion.evidenceDimensions;
+      cluster.scores = fusion.scores;
+
+      const lifecycleStatus = determineIncidentLifecycleStatus(cluster, independence, fusion);
+      cluster.status = lifecycleStatus;
+      cluster.decision = fusion.scores.decision;
+      evidenceStore.saveCluster(cluster);
+
+      return res.json({
+        success: true,
+        answer: "YES",
+        message: "Thank you for confirming. Incident corroboration updated.",
+        incident: cluster
+      });
+    } else if (answer === "NO") {
+      // Contradiction / Challenge: adds ALL_CLEAR contradiction report
+      const challengeReport = {
+        id: `rep-challenge-${Date.now()}`,
+        reporterId,
+        reporterName,
+        reporterReputation,
+        reporterLocation: location,
+        resourceId: cluster.resourceId,
+        eventType: "ALL_CLEAR",
+        isContradiction: true,
+        description: notes || "Traveler reports issue is resolved or no longer present.",
+        mediaEvidence: { hasPhoto: false },
+        ipAddress: clientIp,
+        timestamp: new Date().toISOString(),
+        isSpam: false
+      };
+
+      cluster.reports.push(challengeReport);
+      cluster.lastReportedAt = new Date().toISOString();
+
+      const independence = analyzeIndependence(cluster);
+      cluster.independenceAnalysis = independence;
+      const fusion = fuseEvidence(cluster, independence);
+      cluster.evidenceFusion = fusion.evidenceDimensions;
+      cluster.scores = fusion.scores;
+
+      // If contradiction count >= 2 or confidence drops low, mark as RESOLVED
+      const contradictionsCount = cluster.reports.filter(r => r.isContradiction || r.eventType === "ALL_CLEAR").length;
+      if (contradictionsCount >= 2 || fusion.scores.communityConfidence < 0.30) {
+        cluster.status = "RESOLVED";
+      } else {
+        cluster.status = determineIncidentLifecycleStatus(cluster, independence, fusion);
+      }
+      cluster.decision = fusion.scores.decision;
+      evidenceStore.saveCluster(cluster);
+
+      return res.json({
+        success: true,
+        answer: "NO",
+        message: "Challenge recorded. Incident confidence lowered.",
+        incident: cluster
+      });
+    } else {
+      // NOT_SURE: neutral feedback
+      return res.json({
+        success: true,
+        answer: "NOT_SURE",
+        message: "Feedback recorded without modifying confidence scores.",
+        incident: cluster
+      });
+    }
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * POST /api/community/incidents/:id/challenge
+ * Explicit shortcut for challenging an incident report
+ */
+router.post("/incidents/:id/challenge", optionalAuth, (req, res) => {
+  const cluster = evidenceStore.getCluster(req.params.id);
+  if (!cluster) {
+    return res.status(404).json({ success: false, error: "Incident not found" });
+  }
+
+  const { notes = "", location = null } = req.body;
+  const user = req.user;
+  const reporterId = user ? user.userId : `traveler-${Date.now()}`;
+  const reporterName = user ? user.name : "Wayfarer Traveler";
+  const clientIp = req.ip || req.headers["x-forwarded-for"] || "127.0.0.1";
+
+  const challengeReport = {
+    id: `rep-challenge-${Date.now()}`,
+    reporterId,
+    reporterName,
+    reporterReputation: user ? 0.85 : 0.65,
+    reporterLocation: location,
+    resourceId: cluster.resourceId,
+    eventType: "ALL_CLEAR",
+    isContradiction: true,
+    description: notes || "Traveler challenged incident validity.",
+    mediaEvidence: { hasPhoto: false },
+    ipAddress: clientIp,
+    timestamp: new Date().toISOString(),
+    isSpam: false
+  };
+
+  cluster.reports.push(challengeReport);
+  cluster.lastReportedAt = new Date().toISOString();
+
+  const independence = analyzeIndependence(cluster);
+  cluster.independenceAnalysis = independence;
+  const fusion = fuseEvidence(cluster, independence);
+  cluster.evidenceFusion = fusion.evidenceDimensions;
+  cluster.scores = fusion.scores;
+
+  const contradictionsCount = cluster.reports.filter(r => r.isContradiction || r.eventType === "ALL_CLEAR").length;
+  if (contradictionsCount >= 2 || fusion.scores.communityConfidence < 0.30) {
+    cluster.status = "RESOLVED";
+  } else {
+    cluster.status = determineIncidentLifecycleStatus(cluster, independence, fusion);
+  }
+  cluster.decision = fusion.scores.decision;
+  evidenceStore.saveCluster(cluster);
+
+  return res.json({
+    success: true,
+    message: "Challenge recorded. Incident contradiction penalty applied.",
+    incident: cluster
+  });
+});
+
+/**
  * POST /api/community/simulate
  * Run end-to-end simulation presets for live demo & judge evaluation
  */
