@@ -550,6 +550,65 @@ export function fuseEvidence(cluster, independence) {
   };
 }
 
+/**
+ * Evaluates the formal incident lifecycle state.
+ * Lifecycle State Progression:
+ * UNVERIFIED -> CORROBORATING -> VERIFIED -> ACTIVE -> STALE -> RESOLVED
+ * Suspicious Branch:
+ * UNVERIFIED -> SUSPICIOUS -> QUARANTINED
+ *
+ * @param {Object} cluster 
+ * @param {Object} independence 
+ * @param {Object} fusion 
+ * @returns {string} Incident Lifecycle Status
+ */
+export function determineIncidentLifecycleStatus(cluster, independence, fusion) {
+  // If explicitly resolved
+  if (cluster.status === "RESOLVED") return "RESOLVED";
+
+  // Check if stale: age > 90 minutes without recent confirmation
+  const reports = cluster.reports || [];
+  const latestReportTime = reports.length > 0 
+    ? Math.max(...reports.map(r => new Date(r.timestamp).getTime()))
+    : new Date(cluster.lastReportedAt || 0).getTime();
+  const ageMinutes = (Date.now() - latestReportTime) / 60000;
+
+  if (ageMinutes > 90 && cluster.status !== "RESOLVED") {
+    return "STALE";
+  }
+
+  const { decision, attackRisk, communityConfidence, actionConfidence } = fusion.scores;
+  const n = independence?.independentConfirmationsCount || reports.length || 0;
+
+  // Suspicious branch
+  if (attackRisk >= 0.70 || decision === "QUARANTINE") {
+    return attackRisk >= 0.85 ? "QUARANTINED" : "SUSPICIOUS";
+  }
+
+  // Authority verification makes it immediately ACTIVE
+  if (cluster.officialAuthorityVerified) {
+    return "ACTIVE";
+  }
+
+  // Active: High action confidence and ADAPT decision
+  if (decision === "ADAPT") {
+    return "ACTIVE";
+  }
+
+  // Verified: High community confidence, but action confidence below adapt threshold
+  if (communityConfidence >= 0.75 || n >= 3) {
+    return "VERIFIED";
+  }
+
+  // Corroborating: 2+ reports or 1 highly trusted report with moderate confidence
+  if (n >= 2 || communityConfidence >= 0.60) {
+    return "CORROBORATING";
+  }
+
+  // Single uncorroborated report
+  return "UNVERIFIED";
+}
+
 // ─────────────────────────────────────────────────────────────
 // PIPELINE RUNNER: END-TO-END INGESTION
 // ─────────────────────────────────────────────────────────────
@@ -557,7 +616,7 @@ export function fuseEvidence(cluster, independence) {
 /**
  * Processes an incoming community report through the complete 4-stage pipeline.
  * @param {Object} reportInput 
- * @returns {Object} { report, cluster, pipelineTrace, decision }
+ * @returns {Object} { report, cluster, pipelineTrace, decision, status }
  */
 export function processCommunityReport(reportInput) {
   const timestamp = reportInput.timestamp || new Date().toISOString();
@@ -595,7 +654,8 @@ export function processCommunityReport(reportInput) {
       resourceName: RESOURCE_COORDINATES[report.resourceId]?.name || report.resourceId,
       eventType: report.eventType,
       title: `[QUARANTINED] Spam / Abuse Flagged Report`,
-      status: "QUARANTINE",
+      status: "QUARANTINED",
+      decision: "QUARANTINE",
       firstReportedAt: report.timestamp,
       lastReportedAt: report.timestamp,
       reports: [report],
@@ -623,7 +683,8 @@ export function processCommunityReport(reportInput) {
         communityConfidence: 0.05,
         attackRisk: 0.95,
         actionConfidence: 0.01,
-        decision: "QUARANTINE"
+        decision: "QUARANTINE",
+        status: "QUARANTINED"
       },
       operatorNotes: `Automated quarantine: ${report.abuseReasons.join(", ")}`
     };
@@ -638,8 +699,10 @@ export function processCommunityReport(reportInput) {
         stage2_duplicate: { clustered: false, reason: "Bypassed due to abuse detection" },
         stage3_independence: quarantinedCluster.independenceAnalysis,
         stage4_fusion: quarantinedCluster.evidenceFusion,
+        lifecycleStatus: "QUARANTINED",
         finalDecision: "QUARANTINE"
       },
+      status: "QUARANTINED",
       decision: "QUARANTINE"
     };
   }
@@ -656,11 +719,16 @@ export function processCommunityReport(reportInput) {
   const fusion = fuseEvidence(cluster, independence);
   cluster.evidenceFusion = fusion.evidenceDimensions;
   cluster.scores = fusion.scores;
-  cluster.status = fusion.scores.decision;
+
+  // Lifecycle state evaluation
+  const lifecycleStatus = determineIncidentLifecycleStatus(cluster, independence, fusion);
+  cluster.status = lifecycleStatus;
+  cluster.decision = fusion.scores.decision;
+  cluster.scores.status = lifecycleStatus;
 
   evidenceStore.saveCluster(cluster);
 
-  securityLogger.info(`[COMMUNITY_PIPELINE] Incident ${cluster.id} evaluated: Decision=${cluster.status} (ActionConfidence=${fusion.scores.actionConfidence}, AttackRisk=${fusion.scores.attackRisk})`);
+  securityLogger.info(`[COMMUNITY_PIPELINE] Incident ${cluster.id} evaluated: Status=${cluster.status} Decision=${cluster.decision} (ActionConfidence=${fusion.scores.actionConfidence}, AttackRisk=${fusion.scores.attackRisk})`);
 
   return {
     report,
@@ -670,9 +738,11 @@ export function processCommunityReport(reportInput) {
       stage2_duplicate: { isNewCluster, clusterId: cluster.id },
       stage3_independence: independence,
       stage4_fusion: fusion.evidenceDimensions,
-      finalDecision: cluster.status
+      lifecycleStatus: cluster.status,
+      finalDecision: cluster.decision
     },
-    decision: cluster.status
+    status: cluster.status,
+    decision: cluster.decision
   };
 }
 
@@ -687,23 +757,31 @@ export function actionIncidentCluster(clusterId, actionType, operatorNotes = "",
 
   if (actionType === "CONFIRM_ADAPT") {
     cluster.officialAuthorityVerified = true;
-    cluster.status = "ADAPT";
+    cluster.status = "ACTIVE";
+    cluster.decision = "ADAPT";
     cluster.scores.actionConfidence = 1.0;
     cluster.scores.attackRisk = 0.05;
     cluster.scores.decision = "ADAPT";
+    cluster.scores.status = "ACTIVE";
     cluster.operatorNotes = operatorNotes || `Verified and confirmed by ${operatorUser}`;
   } else if (actionType === "REJECT_QUARANTINE") {
-    cluster.status = "QUARANTINE";
+    cluster.status = "QUARANTINED";
+    cluster.decision = "QUARANTINE";
     cluster.scores.actionConfidence = 0.10;
     cluster.scores.attackRisk = 0.90;
     cluster.scores.decision = "QUARANTINE";
+    cluster.scores.status = "QUARANTINED";
     cluster.operatorNotes = operatorNotes || `Quarantined and rejected by ${operatorUser}`;
   } else if (actionType === "DOWNGRADE_WARN") {
-    cluster.status = "WARN";
+    cluster.status = "CORROBORATING";
+    cluster.decision = "WARN";
     cluster.scores.decision = "WARN";
+    cluster.scores.status = "CORROBORATING";
     cluster.operatorNotes = operatorNotes || `Maintained as advisory warning by ${operatorUser}`;
   } else if (actionType === "RESOLVE") {
     cluster.status = "RESOLVED";
+    cluster.decision = "WARN";
+    cluster.scores.status = "RESOLVED";
     cluster.operatorNotes = operatorNotes || `Issue cleared / resolved by ${operatorUser}`;
   }
 
