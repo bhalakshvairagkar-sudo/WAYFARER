@@ -17,6 +17,8 @@ import {
 } from 'lucide-react';
 import { useJourney } from '../context/JourneyContext.jsx';
 import SafetyVerificationModal from '../components/dashboard/SafetyVerificationModal.jsx';
+import EvidenceFusionPipelineVisualizer from '../components/dashboard/EvidenceFusionPipelineVisualizer.jsx';
+import CommunityReportModal from '../components/common/CommunityReportModal.jsx';
 
 export default function EventsCenterPageView() {
   const navigate = useNavigate();
@@ -30,6 +32,7 @@ export default function EventsCenterPageView() {
 
   const [activeSimulationId, setActiveSimulationId] = useState(null);
   const [isSafetyModalOpen, setIsSafetyModalOpen] = useState(false);
+  const [isCommunityReportModalOpen, setIsCommunityReportModalOpen] = useState(false);
 
   const segments = journeyState.segments || [];
   const activeSegment = segments.find((s) => s.id === activeSegmentId) || segments[0];
@@ -90,15 +93,28 @@ export default function EventsCenterPageView() {
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={resetToBaseline}
-          className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition flex items-center gap-2 self-start sm:self-auto"
-        >
-          <RotateCcw className="w-3.5 h-3.5" />
-          <span>Reset Journey</span>
-        </button>
+        <div className="flex items-center gap-2 self-start sm:self-auto">
+          <button
+            type="button"
+            onClick={() => setIsCommunityReportModalOpen(true)}
+            className="px-4 py-2 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs transition flex items-center gap-1.5 shadow-sm"
+          >
+            <Users className="w-3.5 h-3.5" />
+            <span>Submit Community Report</span>
+          </button>
+          <button
+            type="button"
+            onClick={resetToBaseline}
+            className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition flex items-center gap-1.5"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span>Reset Journey</span>
+          </button>
+        </div>
       </div>
+
+      {/* Embedded 4-Stage Evidence Fusion Pipeline Visualizer */}
+      <EvidenceFusionPipelineVisualizer onOpenReportModal={() => setIsCommunityReportModalOpen(true)} />
 
       {/* Alerts Log */}
       <div className="space-y-4">
@@ -215,6 +231,12 @@ export default function EventsCenterPageView() {
         isOpen={isSafetyModalOpen} 
         onClose={() => setIsSafetyModalOpen(false)} 
         segmentId={activeSegment?.id || 'S1'}
+      />
+
+      <CommunityReportModal
+        isOpen={isCommunityReportModalOpen}
+        onClose={() => setIsCommunityReportModalOpen(false)}
+        defaultResourceId={activeSegment?.id || 'S3'}
       />
     </div>
   );

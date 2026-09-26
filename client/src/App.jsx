@@ -1,5 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import 'leaflet/dist/leaflet.css';
+import { AuthProvider } from './context/AuthContext.jsx';
 import { JourneyProvider } from './context/JourneyContext.jsx';
 import Navbar from './components/Navbar.jsx';
 import MobileBottomNav from './components/common/MobileBottomNav.jsx';
@@ -13,56 +15,59 @@ import EventsCenterPageView from './pages/EventsCenterPageView.jsx';
 import RecoveryPageView from './pages/RecoveryPageView.jsx';
 import OperatorPageView from './pages/OperatorPageView.jsx';
 import HistoryPageView from './pages/HistoryPageView.jsx';
+import SharedLocationPageView from './pages/SharedLocationPageView.jsx';
 
 export default function App() {
   return (
     <BrowserRouter>
-      <JourneyProvider>
-        <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-900 selection:bg-brand-500 selection:text-white pb-16 sm:pb-0">
-          
-          {/* Global Sticky Navbar */}
-          <Navbar />
-          
-          {/* Onboarding Overlay */}
-          <WelcomeModal />
+      <AuthProvider>
+        <JourneyProvider>
+          <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-900 selection:bg-brand-500 selection:text-white pb-16 sm:pb-0">
+            
+            {/* Global Sticky Navbar */}
+            <Navbar />
+            
+            {/* Onboarding Overlay */}
+            <WelcomeModal />
 
-          {/* Main Route Switcher */}
-          <main className="flex-1 overflow-x-hidden relative">
-            <Routes>
-              <Route path="/" element={<LandingPageView />} />
-              <Route path="/profile" element={<ProfilePageView />} />
-              <Route path="/planner" element={<PlannerPageView />} />
-              <Route path="/journey/:id" element={<LiveJourneyPageView />} />
-              <Route path="/events" element={<EventsCenterPageView />} />
-              <Route path="/recovery/:id" element={<RecoveryPageView />} />
-              <Route path="/operator" element={<OperatorPageView />} />
-              <Route path="/history" element={<HistoryPageView />} />
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-          </main>
+            {/* Main Route Switcher */}
+            <main className="flex-1 overflow-x-hidden relative">
+              <Routes>
+                <Route path="/" element={<LandingPageView />} />
+                <Route path="/profile" element={<ProfilePageView />} />
+                <Route path="/planner" element={<PlannerPageView />} />
+                <Route path="/journey/:id" element={<LiveJourneyPageView />} />
+                <Route path="/events" element={<EventsCenterPageView />} />
+                <Route path="/recovery/:id" element={<RecoveryPageView />} />
+                <Route path="/operator" element={<OperatorPageView />} />
+                <Route path="/history" element={<HistoryPageView />} />
+                <Route path="/shared-location/:token" element={<SharedLocationPageView />} />
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
+            </main>
 
-          {/* Mobile Tab Bar */}
-          <MobileBottomNav />
+            {/* Mobile Tab Bar */}
+            <MobileBottomNav />
 
-          {/* Global Professional Footer */}
-          <footer className="hidden sm:block border-t border-slate-200 bg-white py-6 text-xs text-slate-500 font-medium">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <span className="font-bold text-slate-800">WAYFARER AI</span>
-                <span>— Adaptive Journey Intelligence for Dynamic, Inclusive Travel</span>
+            {/* Global Professional Footer */}
+            <footer className="hidden sm:block border-t border-slate-200 bg-white py-6 text-xs text-slate-500 font-medium">
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-slate-800">WAYFARER AI</span>
+                  <span>— Adaptive Journey Intelligence for Dynamic, Inclusive Travel</span>
+                </div>
+                <div className="flex items-center gap-4 text-slate-400">
+                  <span>Google Maps & Places API</span>
+                  <span>•</span>
+                  <span>Gemini Reasoning</span>
+                  <span>•</span>
+                  <span>5-Factor Deterministic Scoring</span>
+                </div>
               </div>
-              <div className="flex items-center gap-4 text-slate-400">
-                <span>Google Maps & Places API</span>
-                <span>•</span>
-                <span>Gemini Reasoning</span>
-                <span>•</span>
-                <span>5-Factor Deterministic Scoring</span>
-              </div>
-            </div>
-          </footer>
-
-        </div>
-      </JourneyProvider>
+            </footer>
+          </div>
+        </JourneyProvider>
+      </AuthProvider>
     </BrowserRouter>
   );
 }

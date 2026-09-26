@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Layers, Navigation, AlertCircle, Compass, MapPin, CheckCircle, Info } from 'lucide-react';
 import L from 'leaflet';
 import { isGoogleMapsConfigured, loadGoogleMapsScript } from '../../services/googleMapsLoader.js';
+import { updateUserLocation } from '../../services/api.js';
 
 export default function GoogleMap({
   activeSegment,
@@ -18,8 +19,9 @@ export default function GoogleMap({
   const googleMarkersRef = useRef([]);
   const leafletInstanceRef = useRef(null);
   const leafletLayerGroupRef = useRef(null);
+  const resizeObserverRef = useRef(null);
 
-  const [mapType, setMapType] = useState('CHECKING'); // 'GOOGLE' | 'LEAFLET_FALLBACK'
+  const [mapType, setMapType] = useState(() => isGoogleMapsConfigured() ? 'CHECKING' : 'LEAFLET_FALLBACK');
   const [userLocation, setUserLocation] = useState(null);
   const [locationError, setLocationError] = useState(false);
 
@@ -51,13 +53,45 @@ export default function GoogleMap({
     };
   }, []);
 
+  // Cleanup Leaflet on unmount
+  useEffect(() => {
+    return () => {
+      if (resizeObserverRef.current) {
+        resizeObserverRef.current.disconnect();
+        resizeObserverRef.current = null;
+      }
+      if (leafletInstanceRef.current) {
+        leafletInstanceRef.current.remove();
+        leafletInstanceRef.current = null;
+      }
+    };
+  }, []);
+
   // Request browser geolocation if requested for real-time tracking
   useEffect(() => {
     if (showCurrentLocation && navigator.geolocation) {
+      let lastSyncTime = 0;
+
       const watchId = navigator.geolocation.watchPosition(
         (pos) => {
-          setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+          const lat = pos.coords.latitude;
+          const lng = pos.coords.longitude;
+          setUserLocation({ lat, lng });
           setLocationError(false);
+
+          // Throttled sync to backend location API (at most once every 10 seconds)
+          const now = Date.now();
+          if (now - lastSyncTime > 10000) {
+            lastSyncTime = now;
+            const precision = localStorage.getItem('wayfarer_precision_mode') || 'precise';
+            updateUserLocation({
+              lat,
+              lng,
+              accuracy: pos.coords.accuracy || 10,
+              precision,
+              journeyId: activeSegment?.id || 'active-journey'
+            }).catch(() => {});
+          }
         },
         (err) => {
           console.warn('[GoogleMap] Real-time tracking error:', err);
@@ -70,7 +104,7 @@ export default function GoogleMap({
         navigator.geolocation.clearWatch(watchId);
       };
     }
-  }, [showCurrentLocation]);
+  }, [showCurrentLocation, activeSegment?.id]);
 
   // ─── 1. GOOGLE MAPS RENDERING ───
   useEffect(() => {
@@ -196,6 +230,11 @@ export default function GoogleMap({
 
     if (!leafletInstanceRef.current) {
       try {
+        // Prevent "Map container is already initialized" error if container was previously used
+        if (mapContainerRef.current && mapContainerRef.current._leaflet_id) {
+          delete mapContainerRef.current._leaflet_id;
+        }
+
         const defaultCenter = [activeSegment?.originLat || 15.4989, activeSegment?.originLng || 73.8000];
         const map = L.map(mapContainerRef.current, {
           center: defaultCenter,
@@ -206,14 +245,37 @@ export default function GoogleMap({
 
         L.control.zoom({ position: 'topright' }).addTo(map);
 
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        // OpenStreetMap tile layer (100% reliable, zero billing/block issues)
+        const tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
           maxZoom: 19,
-          subdomains: ['a', 'b', 'c']
-        }).addTo(map);
+          subdomains: ['a', 'b', 'c'],
+          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        });
+        tileLayer.addTo(map);
 
         const layerGroup = L.layerGroup().addTo(map);
         leafletLayerGroupRef.current = layerGroup;
         leafletInstanceRef.current = map;
+        
+        // Multi-stage size invalidation to fix grey tiles across all layout transitions
+        [100, 300, 600].forEach((delay) => {
+          setTimeout(() => {
+            if (leafletInstanceRef.current) {
+              leafletInstanceRef.current.invalidateSize();
+            }
+          }, delay);
+        });
+
+        // Watch for parent container size changes (e.g. mobile bottom sheets, resizing)
+        if (typeof ResizeObserver !== 'undefined' && mapContainerRef.current) {
+          const ro = new ResizeObserver(() => {
+            if (leafletInstanceRef.current) {
+              leafletInstanceRef.current.invalidateSize();
+            }
+          });
+          ro.observe(mapContainerRef.current);
+          resizeObserverRef.current = ro;
+        }
       } catch (err) {
         console.error('[Leaflet Init Error]:', err);
       }
@@ -283,13 +345,34 @@ export default function GoogleMap({
       bounds.extend([activeSegment.destinationLat, activeSegment.destinationLng]);
     }
 
+    // Live Geolocation Marker
+    if (userLocation?.lat && userLocation?.lng) {
+      const userMarker = L.circleMarker([userLocation.lat, userLocation.lng], {
+        radius: 7,
+        fillColor: '#2563eb',
+        color: '#ffffff',
+        weight: 3,
+        fillOpacity: 1
+      }).bindTooltip('<strong>Your Location</strong>', { permanent: false });
+      layerGroup.addLayer(userMarker);
+    }
+
     if (bounds.isValid()) {
       map.fitBounds(bounds, { padding: [40, 40], maxZoom: 15 });
+    } else if (activeSegment?.originLat && activeSegment?.originLng) {
+      map.setView([activeSegment.originLat, activeSegment.originLng], 13);
     }
-  }, [mapType, activeSegment, selectedRouteId]);
+
+    // Invalidate size on segment switch
+    setTimeout(() => {
+      if (leafletInstanceRef.current) {
+        leafletInstanceRef.current.invalidateSize();
+      }
+    }, 100);
+  }, [mapType, activeSegment, selectedRouteId, userLocation]);
 
   return (
-    <div className={`relative rounded-2xl overflow-hidden border border-slate-200 shadow-soft bg-slate-100 ${className}`}>
+    <div style={{ height: height === '100%' ? '100%' : 'auto' }} className={`relative rounded-2xl overflow-hidden border border-slate-200 shadow-soft bg-slate-100 ${className}`}>
       {/* Top Map Status Overlay */}
       <div className="absolute top-3 left-3 z-20 flex flex-wrap items-center gap-2 pointer-events-none">
         {mapType === 'GOOGLE' ? (
@@ -298,9 +381,9 @@ export default function GoogleMap({
             LIVE GOOGLE MAPS ROUTING
           </span>
         ) : (
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/95 text-slate-800 text-[11px] font-bold shadow-md border border-amber-200/80 backdrop-blur-xs">
-            <span className="w-2 h-2 rounded-full bg-amber-500"></span>
-            DEMO / OFFLINE MAP MODE
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/95 text-slate-800 text-[11px] font-bold shadow-md border border-emerald-200/80 backdrop-blur-xs">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            LIVE MAP NAVIGATION
           </span>
         )}
 

@@ -27,6 +27,8 @@ import CurrentSegmentCard from '../components/dashboard/CurrentSegmentCard.jsx';
 import DownstreamImpactCard from '../components/dashboard/DownstreamImpactCard.jsx';
 import ExplanationCard from '../components/dashboard/ExplanationCard.jsx';
 import SafetyVerificationModal from '../components/dashboard/SafetyVerificationModal.jsx';
+import CopilotChat from '../components/dashboard/CopilotChat.jsx';
+import CommunityReportModal from '../components/common/CommunityReportModal.jsx';
 
 export default function LiveJourneyPageView() {
   const navigate = useNavigate();
@@ -39,6 +41,7 @@ export default function LiveJourneyPageView() {
   } = useJourney();
 
   const [isSafetyModalOpen, setIsSafetyModalOpen] = useState(false);
+  const [isCommunityModalOpen, setIsCommunityModalOpen] = useState(false);
   const [showMatrix, setShowMatrix] = useState(false);
   const [sheetState, setSheetState] = useState('half');
 
@@ -62,6 +65,27 @@ export default function LiveJourneyPageView() {
 
   const dashboardContent = (
     <div className="space-y-6">
+      {/* Community Evidence Intelligence Bar */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-lg bg-orange-100 text-orange-600 flex items-center justify-center">
+            <AlertTriangle className="w-4 h-4" />
+          </div>
+          <div>
+            <h4 className="text-xs font-bold text-slate-800">Community Evidence Intelligence Active</h4>
+            <p className="text-[11px] text-slate-500">Notice an obstruction or elevator outage? Report it to protect fellow travelers.</p>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => setIsCommunityModalOpen(true)}
+          className="px-3.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs transition flex items-center gap-1.5 shadow-2xs self-start sm:self-auto"
+        >
+          <ShieldAlert className="w-3.5 h-3.5 text-amber-400" />
+          <span>Report Obstacle</span>
+        </button>
+      </div>
+
       <JourneyTimeline 
         segments={segments}
         activeSegmentId={activeSegmentId}
@@ -103,6 +127,9 @@ export default function LiveJourneyPageView() {
           )}
         </div>
       </div>
+      
+      {/* AI Journey Copilot */}
+      <CopilotChat journeyState={journeyState} />
     </div>
   );
 
@@ -226,6 +253,11 @@ export default function LiveJourneyPageView() {
         segmentName={`${activeSegment?.origin} → ${activeSegment?.destination}`}
       />
 
+      <CommunityReportModal
+        isOpen={isCommunityModalOpen}
+        onClose={() => setIsCommunityModalOpen(false)}
+        defaultResourceId={activeSegment?.id || 'S3'}
+      />
     </div>
   );
 }

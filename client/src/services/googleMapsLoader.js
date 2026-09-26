@@ -11,8 +11,8 @@ export function getGoogleMapsApiKey() {
 }
 
 export function isGoogleMapsConfigured() {
-  // Always return true so it attempts to load Google Maps UI in development mode
-  return true;
+  const apiKey = getGoogleMapsApiKey();
+  return apiKey && apiKey.trim() !== '' && apiKey.toLowerCase() !== 'your_google_maps_api_key_here';
 }
 
 /**
@@ -25,7 +25,7 @@ export function loadGoogleMapsScript() {
   if (googleMapsPromise) return googleMapsPromise;
 
   const apiKey = getGoogleMapsApiKey();
-  const validKey = apiKey && apiKey.trim() !== '' && apiKey !== 'your_google_maps_api_key_here' ? apiKey : '';
+  const validKey = apiKey && apiKey.trim() !== '' && apiKey.toLowerCase() !== 'your_google_maps_api_key_here' ? apiKey : '';
 
   googleMapsPromise = new Promise((resolve, reject) => {
     // Check if script element already exists
