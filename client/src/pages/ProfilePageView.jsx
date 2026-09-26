@@ -25,12 +25,12 @@ export default function ProfilePageView() {
     "I use a power wheelchair, cannot use stairs, prefer step-free gentle ramps, dislike crowded bottlenecks, and prioritize personal safety and accessible transit."
   );
 
-  const [travelerName, setTravelerName] = useState(journeyState.traveler?.name || 'Aditi');
-  const [mobility, setMobility] = useState(journeyState.traveler?.mobility || 'wheelchair');
-  const [stairsAllowed, setStairsAllowed] = useState(journeyState.traveler?.stairsAllowed || false);
-  const [safetyPriority, setSafetyPriority] = useState(journeyState.traveler?.safetyPriority || 'high');
-  const [crowdTolerance, setCrowdTolerance] = useState(journeyState.traveler?.crowdTolerance || 'low');
-  const [budgetPriority, setBudgetPriority] = useState(journeyState.traveler?.budget || 'medium');
+  const [travelerName, setTravelerName] = useState(journeyState?.traveler?.name || 'Aditi');
+  const [mobility, setMobility] = useState(journeyState?.traveler?.mobility || 'wheelchair');
+  const [stairsAllowed, setStairsAllowed] = useState(journeyState?.traveler?.stairsAllowed || false);
+  const [safetyPriority, setSafetyPriority] = useState(journeyState?.traveler?.safetyPriority || 'high');
+  const [crowdTolerance, setCrowdTolerance] = useState(journeyState?.traveler?.crowdTolerance || 'low');
+  const [budgetPriority, setBudgetPriority] = useState(journeyState?.traveler?.budget || 'medium');
   const [parsedConfirmation, setParsedConfirmation] = useState(null);
 
   const handleUnderstandNeeds = async () => {

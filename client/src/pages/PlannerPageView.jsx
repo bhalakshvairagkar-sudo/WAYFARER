@@ -43,7 +43,7 @@ export default function PlannerPageView() {
             origin,
             destination,
             waypoints: stops,
-            travelerProfile: journeyState.traveler || {}
+            travelerProfile: journeyState?.traveler || {}
           });
           
           const mappedRoutes = routes.map((r, i) => ({

@@ -71,7 +71,7 @@ export default function MyJourneyTree({ segments = [], activeSegmentId, onSelect
                           {seg.id}
                         </span>
                         <span className="truncate">
-                          {seg.origin.split(' ')[0]} → {seg.destination.split(' ')[0]}
+                          {(seg.origin || 'Origin').split(' ')[0]} → {(seg.destination || 'Destination').split(' ')[0]}
                         </span>
                       </div>
                       <div className="flex items-center gap-1.5 shrink-0">

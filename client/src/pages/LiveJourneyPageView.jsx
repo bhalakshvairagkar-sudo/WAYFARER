@@ -45,7 +45,7 @@ export default function LiveJourneyPageView() {
   const [showMatrix, setShowMatrix] = useState(false);
   const [sheetState, setSheetState] = useState('half');
 
-  const segments = journeyState.segments || [];
+  const segments = journeyState?.segments || [];
   const activeSegment = segments.find((s) => s.id === activeSegmentId) || segments[0];
   const candidateRoutes = activeSegment?.candidateRoutes || [];
   const recommendedRoute = candidateRoutes.find((r) => r.isRecommended) || candidateRoutes[0];
@@ -181,7 +181,7 @@ export default function LiveJourneyPageView() {
               className={`snap-center shrink-0 px-4 py-2 rounded-full shadow-md text-xs font-bold transition whitespace-nowrap flex items-center gap-2 ${seg.id === activeSegmentId ? 'bg-brand-600 text-white' : 'bg-white/90 backdrop-blur-md text-slate-700 border border-slate-200'}`}
             >
               {seg.status === 'COMPLETED' ? <CheckCircle2 className="w-3.5 h-3.5" /> : idx === 0 ? <MapPin className="w-3.5 h-3.5" /> : <Clock className="w-3.5 h-3.5" />}
-              {seg.origin.split(',')[0]} → {seg.destination.split(',')[0]}
+              {(seg.origin || 'Origin').split(',')[0]} → {(seg.destination || 'Destination').split(',')[0]}
             </button>
           ))}
         </div>

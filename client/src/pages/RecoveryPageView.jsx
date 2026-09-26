@@ -32,11 +32,11 @@ export default function RecoveryPageView() {
   const [selectedRouteChoice, setSelectedRouteChoice] = useState(null);
   const [showMatrix, setShowMatrix] = useState(false);
 
-  const segments = journeyState.segments || [];
+  const segments = journeyState?.segments || [];
   const activeSegment = segments.find((s) => s.id === activeSegmentId) || segments[0];
   const candidateRoutes = activeSegment?.candidateRoutes || [];
 
-  const eventRecord = journeyState.eventRecord || recoveryState?.event || {
+  const eventRecord = journeyState?.eventRecord || recoveryState?.event || {
     type: 'ACCESSIBILITY_DEGRADATION',
     reason: 'Elevator unavailable at primary ramp access point',
     previousRecommendedId: 'B',

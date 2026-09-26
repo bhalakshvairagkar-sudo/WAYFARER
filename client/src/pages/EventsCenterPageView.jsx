@@ -34,7 +34,7 @@ export default function EventsCenterPageView() {
   const [isSafetyModalOpen, setIsSafetyModalOpen] = useState(false);
   const [isCommunityReportModalOpen, setIsCommunityReportModalOpen] = useState(false);
 
-  const segments = journeyState.segments || [];
+  const segments = journeyState?.segments || [];
   const activeSegment = segments.find((s) => s.id === activeSegmentId) || segments[0];
 
   const handleSimulateEvent = async (id, payload) => {

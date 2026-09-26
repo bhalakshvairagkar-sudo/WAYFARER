@@ -186,7 +186,7 @@ export default function JourneyMap({ activeSegment, segments = [] }) {
         <div className="flex items-center gap-2">
           <Navigation className="w-4 h-4 text-brand-600 animate-pulse" />
           <span className="text-xs font-extrabold text-slate-900">
-            {activeSegment ? `${activeSegment.origin.split(' ')[0]} → ${activeSegment.destination.split(' ')[0]}` : 'Active Route Map'}
+            {activeSegment ? `${(activeSegment.origin || 'Origin').split(' ')[0]} → ${(activeSegment.destination || 'Destination').split(' ')[0]}` : 'Active Route Map'}
           </span>
         </div>
         <span className="h-3 w-px bg-slate-200"></span>

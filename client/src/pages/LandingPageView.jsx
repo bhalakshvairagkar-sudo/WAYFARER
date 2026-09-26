@@ -8,7 +8,7 @@ export default function LandingPageView() {
   const navigate = useNavigate();
 
   // If there's an active route, we can show it in 'Next Journey'
-  const activeSegment = journeyState.segments?.find((s) => s.status === 'ACTIVE') || journeyState.segments?.[0];
+  const activeSegment = journeyState?.segments?.find((s) => s.status === 'ACTIVE') || journeyState?.segments?.[0];
   const activeScore = activeSegment ? Math.round((activeSegment.candidateRoutes?.find(r => r.id === activeSegment.recommendedRouteId)?.compositeScore || 0.90) * 100) : 92;
 
   const handleMicClick = (e) => {
@@ -22,7 +22,7 @@ export default function LandingPageView() {
       {/* Greeting */}
       <div className="space-y-1">
         <h1 className="text-3xl font-black text-slate-900 tracking-tight">
-          Good morning, {journeyState.traveler.name || 'Traveler'} <span className="text-2xl animate-wave inline-block origin-[70%_70%]">👋</span>
+          Good morning, {journeyState?.traveler?.name || 'Traveler'} <span className="text-2xl animate-wave inline-block origin-[70%_70%]">👋</span>
         </h1>
         <p className="text-slate-500 font-medium">Where are you going?</p>
       </div>
@@ -71,7 +71,7 @@ export default function LandingPageView() {
             </div>
 
             <div className="flex items-center gap-4 text-sm text-slate-300 font-medium">
-              <span className="flex items-center gap-1.5"><MapPin className="w-4 h-4 text-slate-400" /> {journeyState.segments?.length ? journeyState.segments.length + 1 : 0} stops</span>
+              <span className="flex items-center gap-1.5"><MapPin className="w-4 h-4 text-slate-400" /> {journeyState?.segments?.length ? journeyState.segments.length + 1 : 0} stops</span>
               <span className="flex items-center gap-1.5"><ShieldCheck className="w-4 h-4 text-slate-400" /> Monitored</span>
             </div>
 

@@ -78,7 +78,7 @@ export default function Navbar() {
           {isAuthenticated && user ? (
             <div className="hidden sm:flex items-center gap-2 bg-slate-100 px-3 py-1 rounded-xl border border-slate-200 text-xs">
               <User className="w-3.5 h-3.5 text-brand-600" />
-              <span className="font-bold text-slate-800">{user.name.split(' ')[0]}</span>
+              <span className="font-bold text-slate-800">{(user?.name || user?.email || 'Traveler').split(' ')[0]}</span>
               <button
                 onClick={logout}
                 title="Log out of secure session"
