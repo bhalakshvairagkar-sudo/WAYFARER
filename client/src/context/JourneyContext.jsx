@@ -85,7 +85,7 @@ export function JourneyProvider({ children }) {
   };
 
   // 3. Plan New Journey from Custom Origin, Destination & Stops
-  const planNewJourney = async ({ origin, destination, stops = [], traveler = null }) => {
+  const planNewJourney = async ({ origin, destination, stops = [], description = '', traveler = null }) => {
     setIsLoading(true);
     setError(null);
     try {
@@ -165,6 +165,7 @@ export function JourneyProvider({ children }) {
         trip: {
           origin: origin.name || 'Origin',
           destination: destination.name || 'Destination',
+          description: description || '',
           startDate: '2026-10-01',
           endDate: '2026-10-03',
           durationDays: 3,

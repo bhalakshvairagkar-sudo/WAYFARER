@@ -7,6 +7,7 @@ import { updateUserLocation } from '../../services/api.js';
 export default function GoogleMap({
   activeSegment,
   segments = [],
+  waypoints = [],
   selectedRouteId,
   onSelectRoute,
   showCurrentLocation = true,
@@ -201,6 +202,29 @@ export default function GoogleMap({
       googleMarkersRef.current.push(destMarker);
     }
 
+    // Waypoint Markers
+    waypoints.forEach((wp, idx) => {
+      if (wp.lat && wp.lng) {
+        const wpPos = { lat: wp.lat, lng: wp.lng };
+        bounds.extend(wpPos);
+        const wpMarker = new maps.Marker({
+          position: wpPos,
+          map,
+          title: `Stop ${idx + 1}: ${wp.name}`,
+          label: { text: `${idx + 1}`, color: 'white', fontSize: '12px', fontWeight: 'bold' },
+          icon: {
+            path: maps.SymbolPath.CIRCLE,
+            scale: 9,
+            fillColor: '#7c3aed',
+            fillOpacity: 1,
+            strokeColor: '#ffffff',
+            strokeWeight: 2
+          }
+        });
+        googleMarkersRef.current.push(wpMarker);
+      }
+    });
+
     // User location marker
     if (userLocation) {
       const userMarker = new maps.Marker({
@@ -222,7 +246,7 @@ export default function GoogleMap({
     if (!bounds.isEmpty()) {
       map.fitBounds(bounds, { top: 40, right: 40, bottom: 40, left: 40 });
     }
-  }, [mapType, activeSegment, selectedRouteId, userLocation]);
+  }, [mapType, activeSegment, selectedRouteId, userLocation, waypoints]);
 
   // ─── 2. LEAFLET FALLBACK RENDERING ───
   useEffect(() => {
@@ -345,6 +369,24 @@ export default function GoogleMap({
       bounds.extend([activeSegment.destinationLat, activeSegment.destinationLng]);
     }
 
+    // Waypoint Markers
+    waypoints.forEach((wp, idx) => {
+      if (wp.lat && wp.lng) {
+        const wpIcon = L.divIcon({
+          className: 'custom-wp-icon',
+          html: `<div class="w-6 h-6 bg-violet-600 border-2 border-white rounded-full flex items-center justify-center text-white text-[10px] font-black shadow-md">${idx + 1}</div>`,
+          iconSize: [24, 24],
+          iconAnchor: [12, 12]
+        });
+        
+        const wpMarker = L.marker([wp.lat, wp.lng], { icon: wpIcon })
+          .bindTooltip(`<strong>Stop ${idx + 1}:</strong> ${wp.name}`, { permanent: false });
+        
+        layerGroup.addLayer(wpMarker);
+        bounds.extend([wp.lat, wp.lng]);
+      }
+    });
+
     // Live Geolocation Marker
     if (userLocation?.lat && userLocation?.lng) {
       const userMarker = L.circleMarker([userLocation.lat, userLocation.lng], {
@@ -369,7 +411,7 @@ export default function GoogleMap({
         leafletInstanceRef.current.invalidateSize();
       }
     }, 100);
-  }, [mapType, activeSegment, selectedRouteId, userLocation]);
+  }, [mapType, activeSegment, selectedRouteId, userLocation, waypoints]);
 
   return (
     <div style={{ height: height === '100%' ? '100%' : 'auto' }} className={`relative rounded-2xl overflow-hidden border border-slate-200 shadow-soft bg-slate-100 ${className}`}>

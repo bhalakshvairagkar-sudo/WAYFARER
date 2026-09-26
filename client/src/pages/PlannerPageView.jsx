@@ -23,6 +23,7 @@ export default function PlannerPageView() {
   const [origin, setOrigin] = useState(null);
   const [destination, setDestination] = useState(null);
   const [stops, setStops] = useState([]);
+  const [description, setDescription] = useState('');
 
   const [selectedRouteId, setSelectedRouteId] = useState('B');
   const [previewSegment, setPreviewSegment] = useState(null);
@@ -150,6 +151,7 @@ export default function PlannerPageView() {
         origin,
         destination,
         stops,
+        description,
         traveler: journeyState.traveler
       });
       navigate('/journey/active');
@@ -177,6 +179,20 @@ export default function PlannerPageView() {
           "{transcript}"
         </div>
       )}
+
+      {/* Journey Description */}
+      <div>
+        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+          Journey Description
+        </label>
+        <textarea
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder="Describe your travel plan — purpose, interests, special needs, duration..."
+          rows={3}
+          className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:bg-white transition resize-none"
+        />
+      </div>
 
       {/* Origin Search */}
       <PlaceSearchInput
@@ -293,6 +309,7 @@ export default function PlannerPageView() {
           activeSegment={previewSegment}
           selectedRouteId={selectedRouteId}
           onSelectRoute={setSelectedRouteId}
+          waypoints={stops.filter(s => s.lat && s.lng)}
           height="100%"
         />
       </div>

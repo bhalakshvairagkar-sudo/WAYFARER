@@ -150,6 +150,11 @@ export default function LiveJourneyPageView() {
             <ChevronRight className="w-5 h-5 text-slate-400" />
             <span className="text-brand-600">{journeyState.trip?.destination || 'Destination'}</span>
           </h1>
+          {journeyState.trip?.description && (
+            <p className="text-xs text-slate-500 mt-1 max-w-xl line-clamp-2">
+              {journeyState.trip.description}
+            </p>
+          )}
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -169,6 +174,7 @@ export default function LiveJourneyPageView() {
         <GoogleMap 
           activeSegment={activeSegment}
           segments={segments}
+          waypoints={(journeyState?.stops || []).filter(s => s.lat && s.lng)}
           height="100%"
         />
         
