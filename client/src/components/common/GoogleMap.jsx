@@ -16,6 +16,7 @@ export default function GoogleMap({
   waypoints = [],
   selectedRouteId,
   onSelectRoute,
+  onMapClick,
   showCurrentLocation = true,
   height = '420px',
   className = ''
@@ -152,6 +153,13 @@ export default function GoogleMap({
           { featureType: 'transit', stylers: [{ visibility: 'on' }] }
         ]
       });
+
+      map.addListener('click', (e) => {
+        if (onMapClick && e.latLng) {
+          onMapClick({ lat: e.latLng.lat(), lng: e.latLng.lng() });
+        }
+      });
+
       googleMapInstanceRef.current = map;
     }
 
@@ -315,6 +323,13 @@ export default function GoogleMap({
 
         const layerGroup = L.layerGroup().addTo(map);
         leafletLayerGroupRef.current = layerGroup;
+
+        map.on('click', (e) => {
+          if (onMapClick && e.latlng) {
+            onMapClick({ lat: e.latlng.lat, lng: e.latlng.lng });
+          }
+        });
+
         leafletInstanceRef.current = map;
         
         // Multi-stage size invalidation to fix grey tiles across all layout transitions

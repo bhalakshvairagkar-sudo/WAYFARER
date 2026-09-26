@@ -111,6 +111,55 @@ export async function getPlaceDetails(placeId, fallbackName = '') {
 }
 
 /**
+ * Reverse geocodes a latitude and longitude into an exact address and spot name
+ */
+export async function reverseGeocode(lat, lng) {
+  if (typeof lat !== 'number' || typeof lng !== 'number') return null;
+
+  try {
+    const res = await fetch(`/api/places/reverse?lat=${lat}&lng=${lng}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.name) {
+        placeCache.set(data.placeId, data);
+        return data;
+      }
+    }
+  } catch (err) {
+    console.warn('[RouteService] Reverse geocode error:', err.message);
+  }
+
+  // Fallback direct Nominatim reverse geocode
+  try {
+    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1`);
+    if (res.ok) {
+      const data = await res.json();
+      const addr = data.address || {};
+      const name = data.name || addr.road || addr.suburb || addr.city || 'Selected Spot';
+      const item = {
+        placeId: `rev_${Date.now()}`,
+        name,
+        formattedAddress: data.display_name,
+        lat,
+        lng,
+        provider: 'REVERSE_GEOCODE'
+      };
+      placeCache.set(item.placeId, item);
+      return item;
+    }
+  } catch (e) {}
+
+  return {
+    placeId: `coord_${Date.now()}`,
+    name: `Spot (${lat.toFixed(4)}, ${lng.toFixed(4)})`,
+    formattedAddress: `${lat.toFixed(5)}, ${lng.toFixed(5)}, India`,
+    lat,
+    lng,
+    provider: 'COORDINATE_FALLBACK'
+  };
+}
+
+/**
  * Pre-cached key transportation and tourist hubs across India for instant zero-latency suggestions
  */
 const POPULAR_HUBS = [

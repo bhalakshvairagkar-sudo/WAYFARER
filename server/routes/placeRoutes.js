@@ -190,9 +190,55 @@ router.get('/search', async (req, res) => {
     }
   });
 
-  // 2. Query Live OpenStreetMap Nominatim for India
+  // 2. Query Photon Komoot Geocoder for micro-spots, shops, streets, clinics, cafes in India
   try {
-    const nominatimUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&countrycodes=in&format=json&addressdetails=1&limit=12`;
+    const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=10&bbox=68.0,8.0,97.5,37.0`;
+    const photonRes = await fetch(photonUrl, {
+      headers: { 'User-Agent': 'Wayfarer-AI-India-Explorer/2.2' }
+    });
+    if (photonRes.ok) {
+      const photonData = await photonRes.json();
+      if (Array.isArray(photonData.features)) {
+        photonData.features.forEach((feat, idx) => {
+          const props = feat.properties || {};
+          const coords = feat.geometry?.coordinates;
+          if (coords && coords.length >= 2) {
+            const spotName = props.name || props.street || query;
+            const lowerSpot = spotName.toLowerCase();
+            if (!seenNames.has(lowerSpot)) {
+              seenNames.add(lowerSpot);
+              const addrParts = [
+                props.name,
+                props.housenumber,
+                props.street,
+                props.district,
+                props.city,
+                props.state,
+                props.postcode
+              ].filter(Boolean);
+              
+              results.push({
+                placeId: `photon_${props.osm_id || idx}_${Date.now()}`,
+                name: spotName,
+                formattedAddress: addrParts.join(', ') || spotName,
+                state: props.state || 'India',
+                category: props.osm_value || props.type || 'Spot',
+                lat: coords[1],
+                lng: coords[0],
+                provider: 'PHOTON_MICRO_SPOT'
+              });
+            }
+          }
+        });
+      }
+    }
+  } catch (err) {
+    // Non-blocking fallback
+  }
+
+  // 3. Query Live OpenStreetMap Nominatim for India (villages, postal codes, junctions)
+  try {
+    const nominatimUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&countrycodes=in&format=json&addressdetails=1&limit=10`;
     const osmResponse = await fetch(nominatimUrl, {
       headers: {
         'User-Agent': 'Wayfarer-AI-India-Explorer/2.2'
@@ -225,7 +271,7 @@ router.get('/search', async (req, res) => {
     // Non-blocking fallback
   }
 
-  // 3. Fallback: Synthesized location if query produced no matches
+  // 4. Fallback: Synthesized location if query produced no matches
   if (results.length === 0) {
     const formatted = query.replace(/\b\w/g, c => c.toUpperCase());
     results.push({
@@ -240,10 +286,62 @@ router.get('/search', async (req, res) => {
     });
   }
 
-  const finalResults = results.slice(0, 15);
+  const finalResults = results.slice(0, 16);
   queryCache.set(cleanQuery, finalResults);
 
   res.json({ results: finalResults });
+});
+
+/**
+ * Reverse Geocode: Converts any map click or GPS coordinate into an exact place name & address
+ */
+router.get('/reverse', async (req, res) => {
+  const lat = parseFloat(req.query.lat);
+  const lng = parseFloat(req.query.lng);
+  if (isNaN(lat) || isNaN(lng)) {
+    return res.status(400).json({ error: 'Valid lat and lng required' });
+  }
+
+  const cacheKey = `rev_${lat.toFixed(4)}_${lng.toFixed(4)}`;
+  if (queryCache.has(cacheKey)) {
+    return res.json(queryCache.get(cacheKey));
+  }
+
+  try {
+    const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1`;
+    const response = await fetch(url, {
+      headers: { 'User-Agent': 'Wayfarer-AI-India-ReverseGeocode/2.2' }
+    });
+    if (response.ok) {
+      const data = await response.json();
+      const address = data.address || {};
+      const name = data.name || address.road || address.neighbourhood || address.suburb || address.village || address.city || 'Selected Location';
+      const result = {
+        placeId: `rev_${data.place_id || Date.now()}`,
+        name,
+        formattedAddress: data.display_name || `${lat.toFixed(5)}, ${lng.toFixed(5)}`,
+        state: address.state || 'India',
+        lat,
+        lng,
+        provider: 'REVERSE_GEOCODE'
+      };
+      queryCache.set(cacheKey, result);
+      return res.json(result);
+    }
+  } catch (err) {
+    // Non-blocking fallback
+  }
+
+  const fallbackResult = {
+    placeId: `rev_fallback_${Date.now()}`,
+    name: `Spot (${lat.toFixed(4)}, ${lng.toFixed(4)})`,
+    formattedAddress: `${lat.toFixed(4)}, ${lng.toFixed(4)}, India`,
+    state: 'India',
+    lat,
+    lng,
+    provider: 'COORDINATE_FALLBACK'
+  };
+  res.json(fallbackResult);
 });
 
 /**

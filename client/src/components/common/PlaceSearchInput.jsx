@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, MapPin, X, Loader2, Sparkles } from 'lucide-react';
-import { searchPlaces, getPlaceDetails } from '../../services/routeService.js';
+import { Search, MapPin, X, Loader2, Sparkles, Crosshair, Navigation } from 'lucide-react';
+import { searchPlaces, getPlaceDetails, reverseGeocode } from '../../services/routeService.js';
 
 export default function PlaceSearchInput({
   label,
-  placeholder = 'Search place, landmark, or terminal...',
+  placeholder = 'Search place, street, shop, or terminal...',
   value,
   onChange,
   onSelectPlace,
@@ -23,6 +23,38 @@ export default function PlaceSearchInput({
       setInputValue(value);
     }
   }, [value]);
+
+  const handleUseCurrentLocation = () => {
+    if (typeof window === 'undefined' || !navigator.geolocation) {
+      alert('Geolocation is not supported by your browser.');
+      return;
+    }
+    setIsLoading(true);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const { latitude, longitude } = pos.coords;
+          const loc = await reverseGeocode(latitude, longitude);
+          if (loc) {
+            setInputValue(loc.name);
+            setIsOpen(false);
+            if (onChange) onChange(loc.name);
+            if (onSelectPlace) onSelectPlace(loc);
+          }
+        } catch (err) {
+          console.warn('[PlaceSearchInput] GPS reverse geocode failed:', err);
+        } finally {
+          setIsLoading(false);
+        }
+      },
+      (err) => {
+        console.warn('[PlaceSearchInput] GPS error:', err);
+        setIsLoading(false);
+        alert('Could not retrieve current location. Please ensure location access is allowed in your browser.');
+      },
+      { enableHighAccuracy: true, timeout: 8000 }
+    );
+  };
 
   // Click outside to close dropdown
   useEffect(() => {
@@ -100,11 +132,22 @@ export default function PlaceSearchInput({
 
   return (
     <div className={`relative ${className}`} ref={dropdownRef}>
-      {label && (
-        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-          {label}
-        </label>
-      )}
+      <div className="flex items-center justify-between mb-1">
+        {label && (
+          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+            {label}
+          </label>
+        )}
+        <button
+          type="button"
+          onClick={handleUseCurrentLocation}
+          title="Detect and use your real-time GPS location"
+          className="inline-flex items-center gap-1 text-[11px] font-semibold text-brand-600 hover:text-brand-700 transition"
+        >
+          <Crosshair className="w-3 h-3 text-brand-500" />
+          <span>Current Location</span>
+        </button>
+      </div>
 
       <div className="relative flex items-center">
         <MapPin className="w-4 h-4 text-slate-400 absolute left-3.5 pointer-events-none" />
@@ -133,12 +176,27 @@ export default function PlaceSearchInput({
       </div>
 
       {/* Autocomplete Dropdown with Maximum India Locations */}
-      {isOpen && suggestions.length > 0 && (
+      {isOpen && (suggestions.length > 0 || !inputValue) && (
         <div className="absolute z-50 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-2xl max-h-80 overflow-y-auto divide-y divide-slate-100">
-          <div className="px-3.5 py-1.5 bg-slate-50/80 border-b border-slate-100 flex items-center justify-between text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-            <span>Locations Found ({suggestions.length})</span>
-            <span className="text-brand-600">Nationwide India Coverage</span>
-          </div>
+          {/* Quick GPS Action */}
+          <button
+            type="button"
+            onClick={handleUseCurrentLocation}
+            className="w-full text-left px-3.5 py-2.5 bg-brand-50/50 hover:bg-brand-50 transition flex items-center gap-2.5 text-brand-700 font-bold text-xs"
+          >
+            <Crosshair className="w-4 h-4 text-brand-600 shrink-0 animate-pulse" />
+            <div className="flex-1">
+              <span>Use Current GPS Location</span>
+              <p className="text-[10px] text-brand-500 font-normal">Detect exact real-time address & spot</p>
+            </div>
+          </button>
+
+          {suggestions.length > 0 && (
+            <div className="px-3.5 py-1.5 bg-slate-50/80 border-b border-slate-100 flex items-center justify-between text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+              <span>Locations Found ({suggestions.length})</span>
+              <span className="text-brand-600">Main Cities to Small Spots</span>
+            </div>
+          )}
           {suggestions.map((item, idx) => (
             <button
               key={item.placeId || idx}

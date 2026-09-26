@@ -10,11 +10,14 @@ import {
   User,
   Loader2,
   Mic,
-  Maximize2
+  Maximize2,
+  X,
+  Crosshair
 } from 'lucide-react';
 import { useJourney } from '../context/JourneyContext.jsx';
 import PlaceSearchInput from '../components/common/PlaceSearchInput.jsx';
 import GoogleMap from '../components/common/GoogleMap.jsx';
+import { reverseGeocode } from '../services/routeService.js';
 
 export default function PlannerPageView() {
   const navigate = useNavigate();
@@ -27,12 +30,28 @@ export default function PlannerPageView() {
 
   const [selectedRouteId, setSelectedRouteId] = useState('B');
   const [previewSegment, setPreviewSegment] = useState(null);
+  const [mapClickedSpot, setMapClickedSpot] = useState(null);
+  const [isResolvingSpot, setIsResolvingSpot] = useState(false);
   
   // Voice & Bottom Sheet state
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState("");
   const [sheetState, setSheetState] = useState('half'); // 'collapsed', 'half', 'full'
   const sheetControls = useAnimation();
+
+  const handleMapClick = async ({ lat, lng }) => {
+    setIsResolvingSpot(true);
+    try {
+      const place = await reverseGeocode(lat, lng);
+      if (place) {
+        setMapClickedSpot(place);
+      }
+    } catch (err) {
+      console.warn('[Planner] Map click reverse geocode failed:', err);
+    } finally {
+      setIsResolvingSpot(false);
+    }
+  };
 
   // Update preview segment when origin, destination, or stops change
   useEffect(() => {
@@ -354,9 +373,64 @@ export default function PlannerPageView() {
           activeSegment={previewSegment}
           selectedRouteId={selectedRouteId}
           onSelectRoute={setSelectedRouteId}
+          onMapClick={handleMapClick}
           waypoints={stops.filter(s => s.lat && s.lng)}
           height="100%"
         />
+
+        {/* Floating Map Click Action Card for Small Spots & Landmarks */}
+        {mapClickedSpot && (
+          <div className="absolute top-16 left-4 right-4 sm:left-4 sm:right-auto sm:w-96 z-30 bg-white/95 backdrop-blur-md rounded-2xl p-4 shadow-2xl border border-brand-200 animate-in fade-in slide-in-from-top-4">
+            <div className="flex items-start justify-between gap-2 mb-2">
+              <div className="flex items-start gap-2">
+                <MapPin className="w-4 h-4 text-brand-600 shrink-0 mt-0.5" />
+                <div>
+                  <h4 className="font-bold text-xs text-slate-900">{mapClickedSpot.name}</h4>
+                  <p className="text-[11px] text-slate-500 line-clamp-2">{mapClickedSpot.formattedAddress}</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setMapClickedSpot(null)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+            <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => {
+                  setOrigin(mapClickedSpot);
+                  setMapClickedSpot(null);
+                }}
+                className="flex-1 py-1.5 px-2 bg-brand-50 hover:bg-brand-100 text-brand-700 font-bold text-[11px] rounded-lg transition"
+              >
+                🚩 Set Start
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setDestination(mapClickedSpot);
+                  setMapClickedSpot(null);
+                }}
+                className="flex-1 py-1.5 px-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-[11px] rounded-lg transition"
+              >
+                🏁 Set Dest
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setStops((prev) => [...prev, mapClickedSpot]);
+                  setMapClickedSpot(null);
+                }}
+                className="py-1.5 px-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[11px] rounded-lg transition"
+              >
+                + Stop
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Mobile Bottom Sheet & Desktop Sidebar */}
