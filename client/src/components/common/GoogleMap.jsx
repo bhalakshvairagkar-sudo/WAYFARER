@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Layers, Navigation, AlertCircle, Compass, MapPin, CheckCircle, Info } from 'lucide-react';
 import L from 'leaflet';
-import { isGoogleMapsConfigured, loadGoogleMapsScript } from '../../services/googleMapsLoader.js';
+import { isGoogleMapsConfigured, loadGoogleMapsScript, ensureMapsKeyLoaded } from '../../services/googleMapsLoader.js';
 import { updateUserLocation } from '../../services/api.js';
 
 export default function GoogleMap({
@@ -31,7 +31,13 @@ export default function GoogleMap({
     let isMounted = true;
 
     async function initMapEngine() {
-      if (isGoogleMapsConfigured()) {
+      let configured = isGoogleMapsConfigured();
+      if (!configured) {
+        const serverKey = await ensureMapsKeyLoaded();
+        if (serverKey) configured = true;
+      }
+
+      if (configured) {
         try {
           const maps = await loadGoogleMapsScript();
           if (isMounted && maps && maps.Map) {
@@ -114,15 +120,17 @@ export default function GoogleMap({
     const maps = window.google?.maps;
     if (!maps) return;
 
+    const hasOrigin = Boolean(activeSegment?.originLat && activeSegment?.originLng);
     const defaultCenter = {
-      lat: activeSegment?.originLat || 15.4989,
-      lng: activeSegment?.originLng || 73.8000
+      lat: hasOrigin ? activeSegment.originLat : 20.5937,
+      lng: hasOrigin ? activeSegment.originLng : 78.9629
     };
+    const defaultZoom = hasOrigin ? 13 : 5;
 
     if (!googleMapInstanceRef.current) {
       const map = new maps.Map(mapContainerRef.current, {
         center: defaultCenter,
-        zoom: 13,
+        zoom: defaultZoom,
         mapTypeId: maps.MapTypeId.ROADMAP,
         mapTypeControl: false,
         fullscreenControl: false,
@@ -178,25 +186,25 @@ export default function GoogleMap({
     });
 
     // Render Origin & Destination Markers
-    if (activeSegment) {
-      const originPos = { lat: activeSegment.originLat || 15.4989, lng: activeSegment.originLng || 73.8000 };
-      const destPos = { lat: activeSegment.destinationLat || 15.4920, lng: activeSegment.destinationLng || 73.7737 };
-
+    if (activeSegment?.originLat && activeSegment?.originLng) {
+      const originPos = { lat: activeSegment.originLat, lng: activeSegment.originLng };
       bounds.extend(originPos);
-      bounds.extend(destPos);
-
       const originMarker = new maps.Marker({
         position: originPos,
         map,
-        title: `Origin: ${activeSegment.origin}`,
+        title: `Origin: ${activeSegment.origin || 'Origin'}`,
         label: { text: 'A', color: 'white', fontWeight: 'bold' }
       });
       googleMarkersRef.current.push(originMarker);
+    }
 
+    if (activeSegment?.destinationLat && activeSegment?.destinationLng) {
+      const destPos = { lat: activeSegment.destinationLat, lng: activeSegment.destinationLng };
+      bounds.extend(destPos);
       const destMarker = new maps.Marker({
         position: destPos,
         map,
-        title: `Destination: ${activeSegment.destination}`,
+        title: `Destination: ${activeSegment.destination || 'Destination'}`,
         label: { text: 'B', color: 'white', fontWeight: 'bold' }
       });
       googleMarkersRef.current.push(destMarker);
@@ -245,6 +253,12 @@ export default function GoogleMap({
 
     if (!bounds.isEmpty()) {
       map.fitBounds(bounds, { top: 40, right: 40, bottom: 40, left: 40 });
+    } else if (hasOrigin) {
+      map.setCenter(defaultCenter);
+      map.setZoom(13);
+    } else {
+      map.setCenter({ lat: 20.5937, lng: 78.9629 });
+      map.setZoom(5);
     }
   }, [mapType, activeSegment, selectedRouteId, userLocation, waypoints]);
 
@@ -259,10 +273,15 @@ export default function GoogleMap({
           delete mapContainerRef.current._leaflet_id;
         }
 
-        const defaultCenter = [activeSegment?.originLat || 15.4989, activeSegment?.originLng || 73.8000];
+        const hasOrigin = Boolean(activeSegment?.originLat && activeSegment?.originLng);
+        const defaultCenter = [
+          hasOrigin ? activeSegment.originLat : 20.5937,
+          hasOrigin ? activeSegment.originLng : 78.9629
+        ];
+        const defaultZoom = hasOrigin ? 13 : 5;
         const map = L.map(mapContainerRef.current, {
           center: defaultCenter,
-          zoom: 13,
+          zoom: defaultZoom,
           zoomControl: false,
           attributionControl: false
         });
@@ -403,6 +422,8 @@ export default function GoogleMap({
       map.fitBounds(bounds, { padding: [40, 40], maxZoom: 15 });
     } else if (activeSegment?.originLat && activeSegment?.originLng) {
       map.setView([activeSegment.originLat, activeSegment.originLng], 13);
+    } else {
+      map.setView([20.5937, 78.9629], 5);
     }
 
     // Invalidate size on segment switch

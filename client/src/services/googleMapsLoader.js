@@ -5,26 +5,65 @@
  */
 
 let googleMapsPromise = null;
+let dynamicApiKey = null;
+
+export function setGoogleMapsApiKey(key) {
+  if (key && typeof key === 'string') {
+    dynamicApiKey = key.trim();
+  }
+}
 
 export function getGoogleMapsApiKey() {
-  return import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
+  if (dynamicApiKey && dynamicApiKey !== '' && dynamicApiKey.toLowerCase() !== 'your_google_maps_api_key_here') {
+    return dynamicApiKey;
+  }
+  const viteKey = (import.meta.env && import.meta.env.VITE_GOOGLE_MAPS_API_KEY) || '';
+  if (viteKey && viteKey.trim() !== '' && viteKey.toLowerCase() !== 'your_google_maps_api_key_here') {
+    return viteKey.trim();
+  }
+  return '';
 }
 
 export function isGoogleMapsConfigured() {
   const apiKey = getGoogleMapsApiKey();
-  return apiKey && apiKey.trim() !== '' && apiKey.toLowerCase() !== 'your_google_maps_api_key_here';
+  return Boolean(apiKey && apiKey.trim() !== '' && apiKey.toLowerCase() !== 'your_google_maps_api_key_here');
+}
+
+/**
+ * Optionally fetches maps config from server if key is set in backend .env
+ */
+export async function ensureMapsKeyLoaded() {
+  if (isGoogleMapsConfigured()) return getGoogleMapsApiKey();
+  try {
+    const res = await fetch('/api/config/maps');
+    if (res.ok) {
+      const data = await res.json();
+      if (data?.apiKey) {
+        setGoogleMapsApiKey(data.apiKey);
+        return data.apiKey;
+      }
+    }
+  } catch (err) {
+    // Fail silently to offline/nominatim mode
+  }
+  return '';
 }
 
 /**
  * Dynamically loads Google Maps script once and returns window.google.maps
  */
-export function loadGoogleMapsScript() {
+export async function loadGoogleMapsScript() {
   if (typeof window === 'undefined') return Promise.reject(new Error('Window not available'));
   if (window.google && window.google.maps) return Promise.resolve(window.google.maps);
 
   if (googleMapsPromise) return googleMapsPromise;
 
-  const apiKey = getGoogleMapsApiKey();
+  // Attempt server fetch if not in vite env
+  let apiKey = getGoogleMapsApiKey();
+  if (!apiKey) {
+    apiKey = await ensureMapsKeyLoaded();
+  }
+
   const validKey = apiKey && apiKey.trim() !== '' && apiKey.toLowerCase() !== 'your_google_maps_api_key_here' ? apiKey : '';
 
   googleMapsPromise = new Promise((resolve, reject) => {
@@ -34,6 +73,13 @@ export function loadGoogleMapsScript() {
       existingScript.addEventListener('load', () => resolve(window.google.maps));
       existingScript.addEventListener('error', (e) => reject(e));
       return;
+    }
+
+    // Intercept Google Maps auth failure to prevent unhandled alerts
+    if (typeof window !== 'undefined') {
+      window.gm_authFailure = () => {
+        console.warn('[Google Maps] Authentication failed. Falling back gracefully to OpenStreetMap/Leaflet.');
+      };
     }
 
     const callbackName = `__wayfarerGoogleMapsCallback_${Date.now()}`;

@@ -70,12 +70,30 @@ export default function PlannerPageView() {
         } catch (err) {
           console.error('[Planner] Preview route calculation failed:', err);
         }
+      } else if (origin) {
+        setPreviewSegment({
+          id: 'S_PREVIEW_ORIGIN',
+          origin: origin.name,
+          originLat: origin.lat,
+          originLng: origin.lng,
+          candidateRoutes: []
+        });
+      } else if (destination) {
+        setPreviewSegment({
+          id: 'S_PREVIEW_DEST',
+          destination: destination.name,
+          destinationLat: destination.lat,
+          destinationLng: destination.lng,
+          candidateRoutes: []
+        });
+      } else {
+        setPreviewSegment(null);
       }
     }
     
-    const timeoutId = setTimeout(loadPreview, 500);
+    const timeoutId = setTimeout(loadPreview, 300);
     return () => clearTimeout(timeoutId);
-  }, [origin, destination, stops, journeyState.traveler]);
+  }, [origin, destination, stops, journeyState?.traveler]);
 
   // Voice Recognition
   const handleMicClick = () => {

@@ -63,6 +63,14 @@ export default function PlaceSearchInput({
     setIsLoading(true);
 
     try {
+      if (suggestion.lat && suggestion.lng) {
+        if (onSelectPlace) {
+          onSelectPlace(suggestion);
+        }
+        setIsLoading(false);
+        return;
+      }
+
       const details = await getPlaceDetails(suggestion.placeId, suggestion.name);
       if (onSelectPlace) {
         onSelectPlace(details);
@@ -73,8 +81,8 @@ export default function PlaceSearchInput({
           placeId: suggestion.placeId,
           name: suggestion.name,
           formattedAddress: suggestion.formattedAddress,
-          lat: suggestion.lat || 18.9220,
-          lng: suggestion.lng || 72.8347
+          lat: suggestion.lat || 20.5937,
+          lng: suggestion.lng || 78.9629
         });
       }
     } finally {
@@ -141,7 +149,7 @@ export default function PlaceSearchInput({
                     {item.name}
                   </span>
                   <span className="text-[9px] font-semibold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded uppercase">
-                    {item.provider === 'GOOGLE_PLACES' ? 'Google' : 'Hub'}
+                    {item.provider === 'GOOGLE_PLACES' ? 'Google' : item.provider === 'OSM_NOMINATIM' ? 'India Live' : 'Hub'}
                   </span>
                 </div>
                 <p className="text-[11px] text-slate-500 truncate">

@@ -94,6 +94,15 @@ app.get("/api/health", (req, res) => {
   });
 });
 
+// Maps Configuration Endpoint (exposes Google Maps API key if set in backend environment)
+app.get("/api/config/maps", (req, res) => {
+  const apiKey = (process.env.VITE_GOOGLE_MAPS_API_KEY || process.env.GOOGLE_MAPS_API_KEY || "").trim();
+  res.json({
+    apiKey: apiKey.toLowerCase() === "your_google_maps_api_key_here" ? "" : apiKey,
+    configured: Boolean(apiKey && apiKey.toLowerCase() !== "your_google_maps_api_key_here")
+  });
+});
+
 // 7. Mount Authentication & Profile Routes
 app.use("/api/auth", authRoutes);
 
