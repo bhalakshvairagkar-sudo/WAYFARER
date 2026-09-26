@@ -312,3 +312,230 @@ export function applyJourneyEvent(currentJourneyState, eventPayload) {
     graphImpact
   };
 }
+
+/**
+ * Canonical contract: Converts a TrustShield cluster into a structured IncidentDecision.
+ * @param {Object} cluster 
+ * @returns {Object} Structured incident decision
+ */
+export function buildIncidentDecision(cluster) {
+  if (!cluster) return null;
+  const reports = cluster.reports || [];
+  const fusion = cluster.evidenceFusion || {};
+  const scores = cluster.scores || {};
+  const independence = cluster.independenceAnalysis || {};
+  
+  const resourceId = cluster.resourceId || "S1";
+  const affectedSegments = resourceId.startsWith("S") ? [resourceId] : [resourceId];
+
+  return {
+    incidentId: cluster.id,
+    eventType: cluster.eventType || "ACCESSIBILITY_ISSUE",
+    title: cluster.title || `Incident on ${resourceId}`,
+    status: cluster.status || "UNVERIFIED",
+    decision: cluster.decision || scores.decision || "WARN",
+    communityConfidence: scores.communityConfidence ?? 0.5,
+    attackRisk: scores.attackRisk ?? 0.1,
+    actionConfidence: scores.actionConfidence ?? 0.5,
+    affectedResource: resourceId,
+    affectedSegments,
+    severity: reports[reports.length - 1]?.severity || 0.7,
+    description: reports[reports.length - 1]?.description || cluster.title,
+    timestamp: cluster.lastReportedAt || new Date().toISOString(),
+    explanationContext: {
+      independentConfirmations: independence.independentConfirmationsCount || reports.length,
+      recentReports: reports.length,
+      uniqueSubnets: independence.uniqueSubnetsCount || 1,
+      contradictions: fusion.contradictions || 0,
+      mediaEvidence: fusion.mediaEvidence || 0.25
+    }
+  };
+}
+
+/**
+ * Phase 4: Evaluates the personalized impact of an incident for a specific traveler.
+ * The same incident (e.g. elevator outage) has CRITICAL impact on a wheelchair user,
+ * HIGH impact on an elderly user, and LOW impact on a standard traveler who can take stairs.
+ *
+ * @param {Object} incident IncidentDecision or incident payload
+ * @param {Object} travelerProfile Traveler profile
+ * @param {Object} journey Current journey state
+ * @returns {Object} Personalized impact assessment
+ */
+export function calculatePersonalImpact(incident = {}, travelerProfile = {}, journey = {}) {
+  const mobility = (travelerProfile.mobility || "").toLowerCase();
+  const isWheelchair = mobility.includes("wheelchair") || mobility.includes("power_wheelchair");
+  const isSenior = mobility.includes("elderly") || mobility.includes("cane") || mobility.includes("senior");
+  const eventType = (incident.eventType || "").toUpperCase();
+  const desc = (incident.description || incident.title || "").toLowerCase();
+  const isElevatorOrStepIssue = eventType.includes("ELEVATOR") || eventType === "ACCESSIBILITY_ISSUE" || /elevator|lift|ramp|stair/i.test(desc);
+
+  let severity = "LOW";
+  let accessibilityImpact = 0.10;
+  let timeImpact = 0.10;
+  let recommendedAction = "WARN";
+
+  if (isElevatorOrStepIssue) {
+    if (isWheelchair) {
+      severity = "CRITICAL";
+      accessibilityImpact = 0.94;
+      timeImpact = 0.15;
+      recommendedAction = (incident.decision === "QUARANTINE" || incident.status === "QUARANTINED") ? "QUARANTINE" : "ADAPT";
+    } else if (isSenior) {
+      severity = "HIGH";
+      accessibilityImpact = 0.70;
+      timeImpact = 0.20;
+      recommendedAction = (incident.decision === "QUARANTINE" || incident.status === "QUARANTINED") ? "QUARANTINE" : "ADAPT";
+    } else {
+      // Standard traveler can use stairs -> low impact, advisory warning only
+      severity = "LOW";
+      accessibilityImpact = 0.15;
+      timeImpact = 0.05;
+      recommendedAction = "WARN";
+    }
+  } else if (eventType === "TRANSPORT_DELAY") {
+    timeImpact = Math.min(1.0, (incident.delayMinutes || 30) / 60);
+    severity = timeImpact > 0.5 ? "HIGH" : "MEDIUM";
+    recommendedAction = incident.decision === "ADAPT" ? "ADAPT" : "WARN";
+  } else if (eventType === "TEMPORARILY_CLOSED" || eventType === "ACTIVITY_CANCELLATION") {
+    severity = "HIGH";
+    accessibilityImpact = 0.50;
+    timeImpact = 0.40;
+    recommendedAction = (incident.decision === "QUARANTINE" || incident.status === "QUARANTINED") ? "QUARANTINE" : "ADAPT";
+  } else if (eventType === "CROWD_SURGE" || eventType === "CROWD_SPIKE") {
+    const crowdSensitive = (travelerProfile.crowdTolerance || "").toLowerCase() === "low";
+    severity = crowdSensitive ? "HIGH" : "LOW";
+    accessibilityImpact = crowdSensitive ? 0.40 : 0.10;
+    recommendedAction = (crowdSensitive && incident.decision === "ADAPT") ? "ADAPT" : "WARN";
+  } else {
+    severity = "MEDIUM";
+    recommendedAction = incident.decision || "WARN";
+  }
+
+  // If incident itself is quarantined, personal recommended action is strictly QUARANTINE (never adapt)
+  if (incident.decision === "QUARANTINE" || incident.status === "QUARANTINED") {
+    recommendedAction = "QUARANTINE";
+  }
+
+  return {
+    severity,
+    affectedSegments: incident.affectedSegments || [incident.affectedResource || "S1"],
+    accessibilityImpact: Number(accessibilityImpact.toFixed(2)),
+    timeImpact: Number(timeImpact.toFixed(2)),
+    recommendedAction,
+    explanation: `Personalized evaluation for ${travelerProfile.name || 'traveler'} (${mobility || 'standard'} mobility): ${severity} impact.`
+  };
+}
+
+/**
+ * Phase 3 & 4: Master Integration Function connecting TrustShield -> Event Engine -> Journey State.
+ * Automatically evaluates personal impact, determines if adaptation is warranted,
+ * and if so, applies the event mutation, constraint validation, re-ranking, and DAG delay cascade.
+ *
+ * @param {Object} journeyState Authoritative journey state
+ * @param {Object} incidentOrDecision TrustShield cluster or IncidentDecision
+ * @param {Object} [traveler] Optional traveler profile override
+ * @returns {Object} Adaptation result with updated segments, personalImpact, and status
+ */
+export function applyIncidentToJourney(journeyState, incidentOrDecision, traveler = null) {
+  if (!journeyState || !journeyState.segments) {
+    throw new Error("Invalid journeyState provided to applyIncidentToJourney");
+  }
+
+  const currentTraveler = traveler || journeyState.traveler || {};
+  const incidentDecision = incidentOrDecision.incidentId
+    ? incidentOrDecision
+    : buildIncidentDecision(incidentOrDecision);
+
+  // 1. Evaluate Personalized Impact
+  const personalImpact = calculatePersonalImpact(incidentDecision, currentTraveler, journeyState);
+
+  // 2. If decision or personal impact is QUARANTINE or WARN (not ADAPT), do NOT adapt the route
+  if (personalImpact.recommendedAction === "QUARANTINE" || incidentDecision.decision === "QUARANTINE") {
+    return {
+      adapted: false,
+      reason: "QUARANTINED_ATTACK_OR_SPAM",
+      advisory: false,
+      personalImpact,
+      incidentDecision,
+      updatedSegments: journeyState.segments,
+      affectedSegment: null,
+      routeChanged: false,
+      message: "Incident is quarantined due to high attack risk or spam. Journey route preserved without adaptation."
+    };
+  }
+
+  if (personalImpact.recommendedAction === "WARN" || incidentDecision.decision === "WARN") {
+    // Attach advisory notice to affected segment without recalculating/mutating route
+    const targetSegId = personalImpact.affectedSegments[0] || "S1";
+    const segmentsWithAdvisory = journeyState.segments.map(seg => {
+      if (seg.id !== targetSegId) return seg;
+      return {
+        ...seg,
+        activeAdvisory: {
+          incidentId: incidentDecision.incidentId,
+          type: incidentDecision.eventType,
+          title: incidentDecision.title,
+          severity: personalImpact.severity,
+          note: incidentDecision.description,
+          timestamp: incidentDecision.timestamp
+        }
+      };
+    });
+
+    return {
+      adapted: false,
+      reason: "ADVISORY_WARN_ONLY",
+      advisory: true,
+      personalImpact,
+      incidentDecision,
+      updatedSegments: segmentsWithAdvisory,
+      affectedSegment: segmentsWithAdvisory.find(s => s.id === targetSegId),
+      routeChanged: false,
+      message: `Advisory registered (${personalImpact.severity} impact for ${currentTraveler.mobility || 'standard'} traveler). Route not changed.`
+    };
+  }
+
+  // 3. ADAPT Action: Map incident to eventPayload and trigger full Event Engine & DAG cascade
+  const targetSegId = personalImpact.affectedSegments[0] || "S1";
+  let eventType = "ACCESSIBILITY_DEGRADATION";
+  if (incidentDecision.eventType === "TRANSPORT_DELAY") eventType = "TRANSPORT_DELAY";
+  else if (incidentDecision.eventType === "TEMPORARILY_CLOSED") eventType = "ACTIVITY_CANCELLATION";
+  else if (incidentDecision.eventType === "CROWD_SURGE") eventType = "CROWD_SPIKE";
+
+  // Identify specific candidate route affected if incident references an elevator or specific feature
+  let targetRouteId = incidentDecision.routeId || null;
+  if (!targetRouteId && (incidentDecision.eventType === "ACCESSIBILITY_ISSUE" || /elevator|lift/i.test(incidentDecision.description || ""))) {
+    const seg = journeyState.segments.find(s => s.id === targetSegId);
+    const elevatorRoute = seg?.candidateRoutes.find(r => 
+      r.elevatorRequired || 
+      (r.accessibleFeatures || []).some(f => /elevator|lift/i.test(f))
+    );
+    if (elevatorRoute) {
+      targetRouteId = elevatorRoute.id;
+    }
+  }
+
+  const eventPayload = {
+    type: eventType,
+    segmentId: targetSegId,
+    routeId: targetRouteId,
+    reason: incidentDecision.description || incidentDecision.title,
+    severity: personalImpact.accessibilityImpact || 0.8,
+    delta: {
+      accessibility: Math.round(58 * (personalImpact.accessibilityImpact || 1.0))
+    }
+  };
+
+  // Run the core event adaptation with constraint validation and DAG cascade
+  const eventResult = applyJourneyEvent(journeyState, eventPayload);
+
+  return {
+    adapted: true,
+    reason: "AUTOMATIC_ADAPTATION",
+    advisory: false,
+    personalImpact,
+    incidentDecision,
+    ...eventResult
+  };
+}

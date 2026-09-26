@@ -14,6 +14,11 @@ import {
   analyzeIndependence,
   fuseEvidence
 } from "../engine/evidenceFusionEngine.js";
+import {
+  buildIncidentDecision,
+  calculatePersonalImpact,
+  applyIncidentToJourney
+} from "../engine/eventEngine.js";
 import { optionalAuth } from "../middleware/authMiddleware.js";
 import { securityLogger } from "../utils/securityLogger.js";
 
@@ -71,11 +76,26 @@ router.post("/report", optionalAuth, async (req, res, next) => {
     };
 
     const result = processCommunityReport(reportInput);
+    const incidentDecision = buildIncidentDecision(result.cluster);
+
+    let personalImpact = null;
+    let journeyAdaptation = null;
+
+    if (req.body.journeyState) {
+      const traveler = req.body.traveler || req.body.journeyState.traveler;
+      personalImpact = calculatePersonalImpact(incidentDecision, traveler, req.body.journeyState);
+      if (incidentDecision.decision === "ADAPT" && personalImpact.recommendedAction === "ADAPT") {
+        journeyAdaptation = applyIncidentToJourney(req.body.journeyState, incidentDecision, traveler);
+      }
+    }
 
     return res.status(201).json({
       success: true,
-      message: `Report ingested. Triage decision: ${result.decision}`,
-      ...result
+      message: `Report ingested. Lifecycle status: ${result.status}, Triage decision: ${result.decision}`,
+      ...result,
+      incidentDecision,
+      personalImpact,
+      journeyAdaptation
     });
   } catch (err) {
     next(err);
@@ -111,6 +131,44 @@ router.get("/incidents/:id", optionalAuth, (req, res) => {
       return res.status(404).json({ success: false, error: "Incident not found" });
     }
     res.json({ success: true, incident: cluster });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * POST /api/community/incidents/:id/evaluate-journey
+ * Evaluates an existing incident against a traveler's journey state and adapts if personal impact warrants.
+ */
+router.post("/incidents/:id/evaluate-journey", optionalAuth, (req, res) => {
+  try {
+    const cluster = evidenceStore.getCluster(req.params.id);
+    if (!cluster) {
+      return res.status(404).json({ success: false, error: "Incident not found" });
+    }
+
+    const { journeyState, traveler } = req.body;
+    if (!journeyState) {
+      return res.status(400).json({ success: false, error: "journeyState is required for evaluation." });
+    }
+
+    const incidentDecision = buildIncidentDecision(cluster);
+    const targetTraveler = traveler || journeyState.traveler || {};
+    const personalImpact = calculatePersonalImpact(incidentDecision, targetTraveler, journeyState);
+
+    let journeyAdaptation = null;
+    if (incidentDecision.decision === "ADAPT" && personalImpact.recommendedAction === "ADAPT") {
+      journeyAdaptation = applyIncidentToJourney(journeyState, incidentDecision, targetTraveler);
+    }
+
+    return res.json({
+      success: true,
+      incident: cluster,
+      incidentDecision,
+      personalImpact,
+      journeyAdaptation,
+      isAdapted: Boolean(journeyAdaptation?.adapted)
+    });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
