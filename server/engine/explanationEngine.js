@@ -194,3 +194,69 @@ Downstream context: ${structuredChange.downstreamSummary}.
     return { explanation: localExplanation, source: "LOCAL_EXPLANATION", badge: "🟡 Local Explanation", structuredChange };
   }
 }
+
+/**
+ * Generate AI Copilot Explanation for Weather Digital Twin & What-If Simulations
+ * @param {Object} twinState Current or simulated digital twin state
+ * @param {Object} [comparison] Optional comparison data from what-if simulation
+ * @returns {Promise<Object>} { explanation, source, badge }
+ */
+export async function generateDigitalTwinExplanation(twinState, comparison = null) {
+  const weather = twinState?.weatherState || {};
+  const traveler = twinState?.travelers?.[0]?.traveler || {};
+  const surface = twinState?.surfaceState || {};
+  const health = twinState?.journeyHealth || {};
+
+  const localExplanation = comparison?.counterfactualExplanation || 
+    `WAYFARER Digital Twin is monitoring ${weather.condition || "atmospheric conditions"} (${weather.temperature}°C, ${weather.precipitation}mm/h rain). Surface flood risk is modeled at ${surface.floodProbability || 5}% across active corridors. Overall Journey Health is ${health.overall}/100 with zero unmitigated physical obstacles for ${traveler.name || 'the traveler'}.`;
+
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey || apiKey.trim() === "" || apiKey === "your_gemini_api_key_here") {
+    return {
+      explanation: localExplanation,
+      source: "LOCAL_EXPLANATION",
+      badge: "🟡 Digital Twin Copilot"
+    };
+  }
+
+  try {
+    const prompt = `
+Context: AI Digital Twin for Adaptive Travel.
+Atmospheric: ${weather.condition}, ${weather.precipitation}mm/h rain, wind ${weather.windSpeed}km/h.
+Corridor surface: ${surface.surfaceWetness} with ${surface.floodProbability}% flood risk.
+Traveler: ${traveler.name}, mobility=${traveler.mobility}.
+Health: ${health.overall}/100.
+${comparison ? `Scenario: Simulated rainfall ${comparison.params?.rainfallMm}mm/h. Health drops to ${twinState.journeyHealth?.overall}, recovers to ${comparison.adaptedHealth?.overall} on reroute.` : ''}
+
+In 2 crisp, authoritative sentences, summarize the environmental impact on this traveler and how WAYFARER's Digital Twin protects their journey.
+`;
+
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": apiKey
+      },
+      body: JSON.stringify({
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        generationConfig: { temperature: 0.2, maxOutputTokens: 160 }
+      })
+    });
+
+    if (!response.ok) {
+      return { explanation: localExplanation, source: "LOCAL_EXPLANATION", badge: "🟡 Digital Twin Copilot" };
+    }
+
+    const data = await response.json();
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || localExplanation;
+
+    return {
+      explanation: text,
+      source: "LIVE_GEMINI",
+      badge: `🟢 Digital Twin AI Copilot (${GEMINI_MODEL})`
+    };
+  } catch (err) {
+    return { explanation: localExplanation, source: "LOCAL_EXPLANATION", badge: "🟡 Digital Twin Copilot" };
+  }
+}
+

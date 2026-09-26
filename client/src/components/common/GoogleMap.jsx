@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Layers, Navigation, AlertCircle, Compass, MapPin, CheckCircle, Info, Key, Check, X } from 'lucide-react';
+import { Layers, Navigation, AlertCircle, Compass, MapPin, CheckCircle, Info, Key, Check, X, CloudRain, Zap } from 'lucide-react';
 import L from 'leaflet';
 import {
   isGoogleMapsConfigured,
@@ -18,6 +18,10 @@ export default function GoogleMap({
   onSelectRoute,
   onMapClick,
   showCurrentLocation = true,
+  weatherOverlay = true,
+  weatherState = null,
+  corridorState = null,
+  onInspectZone = null,
   height = '420px',
   className = ''
 }) {
@@ -25,6 +29,7 @@ export default function GoogleMap({
   const googleMapInstanceRef = useRef(null);
   const googlePolylinesRef = useRef([]);
   const googleMarkersRef = useRef([]);
+  const googleWeatherCirclesRef = useRef([]);
   const leafletInstanceRef = useRef(null);
   const leafletLayerGroupRef = useRef(null);
   const leafletTileLayerRef = useRef(null);
@@ -37,6 +42,8 @@ export default function GoogleMap({
   const [keySaveStatus, setKeySaveStatus] = useState('');
   const [userLocation, setUserLocation] = useState(null);
   const [locationError, setLocationError] = useState(false);
+  const [weatherLayerActive, setWeatherLayerActive] = useState(weatherOverlay);
+  const [selectedZoneInfo, setSelectedZoneInfo] = useState(null);
 
   // Check Google Maps availability on mount
   useEffect(() => {
@@ -165,11 +172,13 @@ export default function GoogleMap({
 
     const map = googleMapInstanceRef.current;
 
-    // Clear existing polylines & markers
+    // Clear existing polylines, markers & weather circles
     googlePolylinesRef.current.forEach((pl) => pl.setMap(null));
     googlePolylinesRef.current = [];
     googleMarkersRef.current.forEach((mk) => mk.setMap(null));
     googleMarkersRef.current = [];
+    googleWeatherCirclesRef.current.forEach((c) => c.setMap(null));
+    googleWeatherCirclesRef.current = [];
 
     const bounds = new maps.LatLngBounds();
     const candidateRoutes = activeSegment?.candidateRoutes || [];
@@ -270,6 +279,41 @@ export default function GoogleMap({
       googleMarkersRef.current.push(userMarker);
     }
 
+    // Weather Radar & Risk Overlays
+    if (weatherLayerActive) {
+      const centerLat = activeSegment?.originLat || 18.9401;
+      const centerLng = activeSegment?.originLng || 72.8354;
+      const rainRate = Number(weatherState?.precipitation || 0);
+      const floodRisk = Number(corridorState?.floodProbability || 15);
+      const zoneColor = floodRisk >= 60 ? '#ef4444' : rainRate > 5 ? '#f59e0b' : '#0284c7';
+
+      const weatherCircle = new maps.Circle({
+        strokeColor: zoneColor,
+        strokeOpacity: 0.85,
+        strokeWeight: 2,
+        fillColor: zoneColor,
+        fillOpacity: floodRisk >= 60 ? 0.25 : 0.14,
+        map,
+        center: { lat: centerLat, lng: centerLng },
+        radius: 1400,
+        zIndex: 1
+      });
+
+      weatherCircle.addListener('click', () => {
+        setSelectedZoneInfo({
+          center: { lat: centerLat, lng: centerLng },
+          rainRate,
+          floodRisk,
+          condition: weatherState?.condition || 'Atmospheric Monitoring',
+          surface: corridorState?.surfaceWetness || 'DAMP',
+          slowdown: corridorState?.trafficSlowdownMultiplier || 1.15
+        });
+        if (onInspectZone) onInspectZone({ lat: centerLat, lng: centerLng, floodRisk });
+      });
+
+      googleWeatherCirclesRef.current.push(weatherCircle);
+    }
+
     if (!bounds.isEmpty()) {
       map.fitBounds(bounds, { top: 40, right: 40, bottom: 40, left: 40 });
     } else if (hasOrigin) {
@@ -279,7 +323,7 @@ export default function GoogleMap({
       map.setCenter({ lat: 20.5937, lng: 78.9629 });
       map.setZoom(5);
     }
-  }, [mapType, activeSegment, selectedRouteId, userLocation, waypoints]);
+  }, [mapType, activeSegment, selectedRouteId, userLocation, waypoints, weatherLayerActive, weatherState, corridorState]);
 
   // ─── 2. LEAFLET FALLBACK RENDERING ───
   useEffect(() => {
@@ -450,6 +494,47 @@ export default function GoogleMap({
       layerGroup.addLayer(userMarker);
     }
 
+    // Weather Radar & Risk Overlays
+    if (weatherLayerActive) {
+      const centerLat = activeSegment?.originLat || 18.9401;
+      const centerLng = activeSegment?.originLng || 72.8354;
+      const rainRate = Number(weatherState?.precipitation || 0);
+      const floodRisk = Number(corridorState?.floodProbability || 15);
+      const zoneColor = floodRisk >= 60 ? '#ef4444' : rainRate > 5 ? '#f59e0b' : '#0284c7';
+
+      const weatherCircle = L.circle([centerLat, centerLng], {
+        radius: 1400,
+        color: zoneColor,
+        fillColor: zoneColor,
+        fillOpacity: floodRisk >= 60 ? 0.22 : 0.14,
+        weight: 2,
+        dashArray: floodRisk >= 60 ? '6, 6' : undefined
+      });
+
+      weatherCircle.bindTooltip(
+        `<strong>🌧️ Digital Twin Weather Zone</strong><br/>` +
+        `Condition: ${weatherState?.condition || 'Monitored'}<br/>` +
+        `Precipitation: ${rainRate} mm/h<br/>` +
+        `Flood Risk: ${floodRisk}%<br/>` +
+        `Click to inspect surface & wheelchair advisory`,
+        { sticky: true }
+      );
+
+      weatherCircle.on('click', () => {
+        setSelectedZoneInfo({
+          center: { lat: centerLat, lng: centerLng },
+          rainRate,
+          floodRisk,
+          condition: weatherState?.condition || 'Monitored',
+          surface: corridorState?.surfaceWetness || 'DAMP',
+          slowdown: corridorState?.trafficSlowdownMultiplier || 1.15
+        });
+        if (onInspectZone) onInspectZone({ lat: centerLat, lng: centerLng, floodRisk });
+      });
+
+      layerGroup.addLayer(weatherCircle);
+    }
+
     if (bounds.isValid()) {
       map.fitBounds(bounds, { padding: [40, 40], maxZoom: 15 });
     } else if (activeSegment?.originLat && activeSegment?.originLng) {
@@ -464,7 +549,7 @@ export default function GoogleMap({
         leafletInstanceRef.current.invalidateSize();
       }
     }, 100);
-  }, [mapType, activeSegment, selectedRouteId, userLocation, waypoints]);
+  }, [mapType, activeSegment, selectedRouteId, userLocation, waypoints, weatherLayerActive, weatherState, corridorState]);
 
   // Synchronize Tile Mode across Google Maps SDK and Leaflet
   useEffect(() => {
@@ -535,6 +620,20 @@ export default function GoogleMap({
         <div className="h-3.5 w-px bg-slate-200 mx-0.5"></div>
         <button
           type="button"
+          onClick={() => setWeatherLayerActive(!weatherLayerActive)}
+          title="Toggle AI Weather Digital Twin Layer"
+          className={`px-2 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 border transition ${
+            weatherLayerActive
+              ? 'bg-blue-600 text-white border-blue-700 shadow-xs'
+              : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+          }`}
+        >
+          <CloudRain className="w-3 h-3" />
+          <span className="hidden sm:inline">Weather Twin {weatherLayerActive ? 'ON' : 'OFF'}</span>
+        </button>
+        <div className="h-3.5 w-px bg-slate-200 mx-0.5"></div>
+        <button
+          type="button"
           onClick={() => {
             setApiKeyInput(getGoogleMapsApiKey());
             setShowKeyModal(true);
@@ -550,6 +649,39 @@ export default function GoogleMap({
           <span className="hidden sm:inline">{isGoogleMapsConfigured() ? 'Key Active' : 'Set Key'}</span>
         </button>
       </div>
+
+      {/* Interactive Weather Zone Inspection Overlay */}
+      {selectedZoneInfo && (
+        <div className="absolute top-14 left-3 z-30 max-w-xs bg-slate-900/95 text-white p-3 rounded-xl border border-slate-700 shadow-lg backdrop-blur-md animate-in fade-in slide-in-from-top-2">
+          <div className="flex items-center justify-between gap-2 mb-1.5">
+            <span className="text-[10px] font-black uppercase text-indigo-300 flex items-center gap-1">
+              <CloudRain className="w-3 h-3 text-blue-400" />
+              <span>Digital Twin Zone Telemetry</span>
+            </span>
+            <button
+              type="button"
+              onClick={() => setSelectedZoneInfo(null)}
+              className="text-slate-400 hover:text-white text-xs p-0.5"
+            >
+              ✕
+            </button>
+          </div>
+          <div className="text-xs font-bold mb-1">
+            Condition: <span className="text-slate-200">{selectedZoneInfo.condition}</span>
+          </div>
+          <div className="grid grid-cols-2 gap-1.5 text-[11px] text-slate-300">
+            <div>Rain Rate: <span className="text-white font-bold">{selectedZoneInfo.rainRate} mm/h</span></div>
+            <div>Flood Risk: <span className="text-rose-400 font-bold">{selectedZoneInfo.floodRisk}%</span></div>
+            <div>Surface: <span className="text-amber-300 font-bold">{selectedZoneInfo.surface}</span></div>
+            <div>Slowdown: <span className="text-amber-300 font-bold">{selectedZoneInfo.slowdown}x</span></div>
+          </div>
+          {selectedZoneInfo.floodRisk >= 50 && (
+            <div className="mt-2 pt-1.5 border-t border-slate-700/80 text-[10px] text-rose-300 font-medium">
+              ⚠️ Wheelchair Warning: Curbs and ramps waterlogged in this zone. AI rerouting recommended.
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Map Canvas */}
       <div ref={mapContainerRef} style={{ height, width: '100%' }} className="relative z-10" />

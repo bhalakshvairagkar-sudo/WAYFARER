@@ -31,6 +31,7 @@ import CopilotChat from '../components/dashboard/CopilotChat.jsx';
 import CommunityReportModal from '../components/common/CommunityReportModal.jsx';
 import JourneyHealthWidget from '../components/dashboard/JourneyHealthWidget.jsx';
 import CommunityConfirmationCard from '../components/dashboard/CommunityConfirmationCard.jsx';
+import DigitalTwinWidget from '../components/dashboard/DigitalTwinWidget.jsx';
 
 export default function LiveJourneyPageView() {
   const navigate = useNavigate();
@@ -63,6 +64,12 @@ export default function LiveJourneyPageView() {
       routeChanged: false
     };
     journeyState.eventHistory = [devRecord, ...(journeyState.eventHistory || [])];
+  };
+
+  const handleApplyWeatherAdaptation = (simResult) => {
+    if (activeSegmentId) {
+      selectRouteForSegment(activeSegmentId, 'C');
+    }
   };
 
   const dashboardContent = (
@@ -135,6 +142,12 @@ export default function LiveJourneyPageView() {
           <span>Report Obstacle</span>
         </button>
       </div>
+
+      {/* 3.5 Weather-Driven AI Digital Twin & What-If Simulation Engine */}
+      <DigitalTwinWidget 
+        journeyState={journeyState}
+        onApplyAdaptation={handleApplyWeatherAdaptation}
+      />
 
       {/* 4. Journey Health Multi-Axis Resilience Card */}
       <JourneyHealthWidget journeyState={journeyState} />
@@ -238,6 +251,7 @@ export default function LiveJourneyPageView() {
           activeSegment={activeSegment}
           segments={segments}
           waypoints={(journeyState?.stops || []).filter(s => s.lat && s.lng)}
+          weatherOverlay={true}
           height="100%"
         />
         
