@@ -35,6 +35,7 @@ import {
 import { applyJourneyEvent } from "./engine/eventEngine.js";
 import { checkDownstreamImpact } from "./engine/downstreamOptimizer.js";
 import { generatePlanExplanation, generateAdaptationExplanation } from "./engine/explanationEngine.js";
+import { calculateJourneyHealth } from "./engine/journeyHealthEngine.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -117,6 +118,8 @@ app.get("/api/journey/default", optionalAuth, (req, res, next) => {
       whyNotData = generateWhyNotExplanation(firstScoredSegment.candidateRoutes, weights);
     }
 
+    const journeyHealth = calculateJourneyHealth({ segments });
+
     res.json({
       trip: DEFAULT_TRIP,
       traveler,
@@ -126,6 +129,7 @@ app.get("/api/journey/default", optionalAuth, (req, res, next) => {
       overallScore: scoreResult.overallScore,
       fitLevel: scoreResult.fitLevel,
       dayScores: scoreResult.dayScores,
+      journeyHealth,
       scoreBreakdown,
       whyNotData
     });
@@ -147,6 +151,7 @@ app.post("/api/journey/parse", aiRateLimiter, optionalAuth, async (req, res, nex
     // Automatically segment and score the parsed journey
     const segments = segmentJourney(parsed.stops, parsed.traveler);
     const scoreResult = calculateOverallJourneyScore(segments);
+    const journeyHealth = calculateJourneyHealth({ segments, traveler: parsed.traveler });
 
     res.json({
       success: true,
@@ -154,7 +159,8 @@ app.post("/api/journey/parse", aiRateLimiter, optionalAuth, async (req, res, nex
       segments,
       overallScore: scoreResult.overallScore,
       fitLevel: scoreResult.fitLevel,
-      dayScores: scoreResult.dayScores
+      dayScores: scoreResult.dayScores,
+      journeyHealth
     });
   } catch (err) {
     next(err);
@@ -219,6 +225,13 @@ app.post("/api/journey/event", optionalAuth, async (req, res, next) => {
       whyNotData = generateWhyNotExplanation(eventResult.affectedSegment.candidateRoutes, weights);
     }
 
+    // 6. Recalculate Journey Health
+    const journeyHealth = calculateJourneyHealth({
+      segments: eventResult.updatedSegments,
+      downstreamImpact: downstreamResult,
+      eventRecord: eventResult.eventRecord
+    });
+
     res.json({
       success: true,
       segments: eventResult.updatedSegments,
@@ -229,6 +242,7 @@ app.post("/api/journey/event", optionalAuth, async (req, res, next) => {
       overallScore: newScoreResult.overallScore,
       fitLevel: newScoreResult.fitLevel,
       dayScores: newScoreResult.dayScores,
+      journeyHealth,
       explanation: explanationResult.explanation,
       explanationSource: explanationResult.source,
       explanationBadge: explanationResult.badge,
