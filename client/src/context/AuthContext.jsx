@@ -6,7 +6,8 @@ import {
   fetchCurrentUser,
   loginUser,
   registerUser,
-  updatePrivacySettings
+  updatePrivacySettings,
+  updateUserProfile
 } from '../services/api.js';
 
 const AuthContext = createContext(null);
@@ -84,6 +85,17 @@ export function AuthProvider({ children }) {
     }
   };
 
+  const updateProfile = async (profileData) => {
+    try {
+      const updatedUser = await updateUserProfile(profileData);
+      setUser(updatedUser);
+      return updatedUser;
+    } catch (err) {
+      console.error('[AuthContext] Update profile error:', err);
+      throw err;
+    }
+  };
+
   const value = {
     user,
     token,
@@ -94,7 +106,8 @@ export function AuthProvider({ children }) {
     login,
     register,
     logout,
-    updatePrivacy
+    updatePrivacy,
+    updateProfile
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

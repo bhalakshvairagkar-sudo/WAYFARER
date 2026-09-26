@@ -8,10 +8,14 @@ import {
 import { calculateRoutes } from '../services/routeService.js';
 import { isGoogleMapsConfigured } from '../services/googleMapsLoader.js';
 import { INITIAL_DEFAULT_STATE } from '../data/mockData.js';
+import { useAuth } from './AuthContext.jsx';
 
 const JourneyContext = createContext(null);
 
 export function JourneyProvider({ children }) {
+  const auth = useAuth();
+  const user = auth?.user;
+
   const [journeyState, setJourneyState] = useState(INITIAL_DEFAULT_STATE);
   const [activeSegmentId, setActiveSegmentId] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -21,6 +25,54 @@ export function JourneyProvider({ children }) {
 
   // Recovery adaptation state after an event occurs
   const [recoveryState, setRecoveryState] = useState(null);
+
+  // Sync user profile & mobility requirements into journeyState whenever authenticated user changes
+  useEffect(() => {
+    if (user) {
+      const prof = user.travelerProfile || {};
+      setJourneyState((prev) => {
+        const mergedTraveler = {
+          ...prev.traveler,
+          id: user.id || user._id,
+          name: user.name || prev.traveler?.name || 'Wayfarer Traveler',
+          email: user.email,
+          mobility: prof.mobility || prev.traveler?.mobility || 'standard',
+          stairsAllowed: prof.stairsAllowed !== undefined ? prof.stairsAllowed : (prev.traveler?.stairsAllowed !== undefined ? prev.traveler.stairsAllowed : true),
+          needsElevator: prof.needsElevator !== undefined ? prof.needsElevator : (prof.mobility === 'wheelchair'),
+          avoidStairs: prof.stairsAllowed === false || prof.mobility === 'wheelchair',
+          maxWalkingDistanceMeters: prof.maxWalkingDistanceMeters || prev.traveler?.maxWalkingDistanceMeters || 1000,
+          walkingTolerance: prof.walkingTolerance || prev.traveler?.walkingTolerance || 'medium',
+          crowdTolerance: prof.crowdTolerance || prev.traveler?.crowdTolerance || 'medium',
+          safetyPriority: prof.safetyPriority || prev.traveler?.safetyPriority || 'high',
+          preferShade: prof.preferShade || false
+        };
+
+        // Re-evaluate segment route recommendations based on the new user's mobility requirements
+        let updatedSegments = prev.segments;
+        if (updatedSegments && updatedSegments.length > 0) {
+          const isWheelchair = mergedTraveler.mobility === 'wheelchair' || mergedTraveler.stairsAllowed === false;
+          updatedSegments = updatedSegments.map((seg) => {
+            if (!seg.candidateRoutes || seg.candidateRoutes.length === 0) return seg;
+            let recommendedRouteId = seg.recommendedRouteId;
+            if (isWheelchair) {
+              const stepFree = seg.candidateRoutes.find(r => r.stepFree && !r.hasStairs);
+              if (stepFree) recommendedRouteId = stepFree.id;
+            }
+            return {
+              ...seg,
+              recommendedRouteId
+            };
+          });
+        }
+
+        return {
+          ...prev,
+          traveler: mergedTraveler,
+          segments: updatedSegments
+        };
+      });
+    }
+  }, [user]);
 
   // Initialize and load default baseline
   useEffect(() => {

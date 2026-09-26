@@ -197,6 +197,27 @@ export default function LiveJourneyPageView() {
               {journeyState.trip.description}
             </p>
           )}
+          <div className="flex items-center gap-2 mt-2">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 text-slate-800 text-[11px] font-bold border border-slate-200">
+              <span>
+                {journeyState.traveler?.mobility === 'wheelchair' ? '♿' :
+                 journeyState.traveler?.mobility === 'elderly' ? '🧓' :
+                 journeyState.traveler?.mobility === 'visually_impaired' ? '👁️' : '🚶'}
+              </span>
+              <span>{journeyState.traveler?.name || 'Traveler'}</span>
+              <span className="text-slate-400 font-normal">•</span>
+              <span className="text-slate-600">
+                {journeyState.traveler?.mobility === 'wheelchair' ? 'Wheelchair (Step-Free)' :
+                 journeyState.traveler?.mobility === 'elderly' ? 'Senior (Gentle)' :
+                 journeyState.traveler?.mobility === 'visually_impaired' ? 'Visual Aid' : 'Standard Mobility'}
+              </span>
+              {journeyState.traveler?.stairsAllowed === false && (
+                <span className="px-1.5 py-0.5 rounded-md bg-rose-100 text-rose-800 text-[10px] font-black">
+                  ZERO STAIRS
+                </span>
+              )}
+            </span>
+          </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">

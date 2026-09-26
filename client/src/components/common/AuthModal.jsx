@@ -20,9 +20,30 @@ export default function AuthModal({ isOpen, onClose }) {
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [role, setRole] = useState('USER');
+  const [mobility, setMobility] = useState('standard');
+  const [stairsAllowed, setStairsAllowed] = useState(true);
+  const [maxWalkingDistanceMeters, setMaxWalkingDistanceMeters] = useState(1000);
+  const [safetyPriority, setSafetyPriority] = useState('high');
+  const [crowdTolerance, setCrowdTolerance] = useState('medium');
+  const [preferShade, setPreferShade] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (!isOpen) return null;
+
+  const handleMobilityChange = (newMobility) => {
+    setMobility(newMobility);
+    if (newMobility === 'wheelchair') {
+      setStairsAllowed(false);
+      setMaxWalkingDistanceMeters(600);
+    } else if (newMobility === 'elderly') {
+      setStairsAllowed(false);
+      setMaxWalkingDistanceMeters(400);
+      setPreferShade(true);
+    } else if (newMobility === 'standard') {
+      setStairsAllowed(true);
+      setMaxWalkingDistanceMeters(1200);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -33,7 +54,21 @@ export default function AuthModal({ isOpen, onClose }) {
       if (tab === 'login') {
         await login(email, password);
       } else {
-        await register({ email, password, name, role });
+        await register({
+          email,
+          password,
+          name,
+          role,
+          travelerProfile: {
+            mobility,
+            stairsAllowed,
+            needsElevator: !stairsAllowed || mobility === 'wheelchair',
+            maxWalkingDistanceMeters: Number(maxWalkingDistanceMeters),
+            safetyPriority,
+            crowdTolerance,
+            preferShade
+          }
+        });
       }
       onClose();
     } catch (err) {
@@ -45,9 +80,9 @@ export default function AuthModal({ isOpen, onClose }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in">
-      <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col">
+      <div className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]">
         {/* Header */}
-        <div className="flex items-center justify-between p-5 border-b border-slate-100 bg-slate-50/80">
+        <div className="flex items-center justify-between p-5 border-b border-slate-100 bg-slate-50/80 shrink-0">
           <div className="flex items-center gap-2.5">
             <div className="w-10 h-10 rounded-xl bg-brand-50 border border-brand-200 flex items-center justify-center">
               <KeyRound className="w-5 h-5 text-brand-600" />
@@ -57,7 +92,7 @@ export default function AuthModal({ isOpen, onClose }) {
                 {tab === 'login' ? 'Traveler Sign In' : 'Create Secure Account'}
               </h2>
               <p className="text-xs text-slate-500 font-medium">
-                {tab === 'login' ? 'Access your saved journeys & location privacy' : 'Encrypted with Bcrypt (Cost 12) & JWT'}
+                {tab === 'login' ? 'Access your saved journeys & location privacy' : 'Personalized to your accessibility & mobility needs'}
               </p>
             </div>
           </div>
@@ -70,7 +105,7 @@ export default function AuthModal({ isOpen, onClose }) {
         </div>
 
         {/* Tab Switcher */}
-        <div className="flex border-b border-slate-200 bg-slate-100/50 p-1">
+        <div className="flex border-b border-slate-200 bg-slate-100/50 p-1 shrink-0">
           <button
             type="button"
             onClick={() => { setTab('login'); setAuthError(null); }}
@@ -96,7 +131,7 @@ export default function AuthModal({ isOpen, onClose }) {
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-5 space-y-4">
+        <form onSubmit={handleSubmit} className="p-5 space-y-4 overflow-y-auto flex-1">
           {authError && (
             <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold flex items-center gap-2">
               <AlertCircle className="w-4 h-4 shrink-0" />
@@ -167,6 +202,110 @@ export default function AuthModal({ isOpen, onClose }) {
                 <option value="EMERGENCY_CONTACT">Emergency Contact</option>
                 <option value="TRAVEL_PARTNER">Travel Companion</option>
               </select>
+            </div>
+          )}
+
+          {tab === 'register' && (
+            <div className="space-y-3 pt-2 border-t border-slate-100">
+              <div>
+                <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5 mb-1.5">
+                  <span>Traveler Mobility & Accessibility Needs</span>
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleMobilityChange('standard')}
+                    className={`p-2.5 rounded-xl border text-left transition flex flex-col gap-1 ${
+                      mobility === 'standard'
+                        ? 'border-brand-500 bg-brand-50/50 ring-2 ring-brand-500/20'
+                        : 'border-slate-200 hover:border-slate-300 bg-white'
+                    }`}
+                  >
+                    <span className="text-base">🚶</span>
+                    <span className="text-xs font-extrabold text-slate-900">Standard</span>
+                    <span className="text-[10px] text-slate-500 leading-tight">Full mobility, stairs permitted</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleMobilityChange('wheelchair')}
+                    className={`p-2.5 rounded-xl border text-left transition flex flex-col gap-1 ${
+                      mobility === 'wheelchair'
+                        ? 'border-brand-500 bg-brand-50/50 ring-2 ring-brand-500/20'
+                        : 'border-slate-200 hover:border-slate-300 bg-white'
+                    }`}
+                  >
+                    <span className="text-base">♿</span>
+                    <span className="text-xs font-extrabold text-slate-900">Wheelchair</span>
+                    <span className="text-[10px] text-slate-500 leading-tight">Step-free, elevators required</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleMobilityChange('elderly')}
+                    className={`p-2.5 rounded-xl border text-left transition flex flex-col gap-1 ${
+                      mobility === 'elderly'
+                        ? 'border-brand-500 bg-brand-50/50 ring-2 ring-brand-500/20'
+                        : 'border-slate-200 hover:border-slate-300 bg-white'
+                    }`}
+                  >
+                    <span className="text-base">🧓</span>
+                    <span className="text-xs font-extrabold text-slate-900">Senior</span>
+                    <span className="text-[10px] text-slate-500 leading-tight">Gentle pace, low walking distance</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleMobilityChange('visually_impaired')}
+                    className={`p-2.5 rounded-xl border text-left transition flex flex-col gap-1 ${
+                      mobility === 'visually_impaired'
+                        ? 'border-brand-500 bg-brand-50/50 ring-2 ring-brand-500/20'
+                        : 'border-slate-200 hover:border-slate-300 bg-white'
+                    }`}
+                  >
+                    <span className="text-base">👁️</span>
+                    <span className="text-xs font-extrabold text-slate-900">Visual Aid</span>
+                    <span className="text-[10px] text-slate-500 leading-tight">Tactile paths & safety priority</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Hard Constraints Checklist */}
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200/80 space-y-2 text-xs">
+                <label className="flex items-center gap-2 cursor-pointer font-medium text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={!stairsAllowed}
+                    onChange={(e) => setStairsAllowed(!e.target.checked)}
+                    className="rounded border-slate-300 text-brand-600 focus:ring-brand-500 w-3.5 h-3.5"
+                  />
+                  <span>Must avoid stairs (Zero-step / elevators only)</span>
+                </label>
+
+                <label className="flex items-center gap-2 cursor-pointer font-medium text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={preferShade}
+                    onChange={(e) => setPreferShade(e.target.checked)}
+                    className="rounded border-slate-300 text-brand-600 focus:ring-brand-500 w-3.5 h-3.5"
+                  />
+                  <span>Prefer shaded & covered walkways</span>
+                </label>
+
+                <div className="flex items-center justify-between pt-1">
+                  <span className="text-[11px] text-slate-600 font-bold">Max Walking Distance:</span>
+                  <select
+                    value={maxWalkingDistanceMeters}
+                    onChange={(e) => setMaxWalkingDistanceMeters(e.target.value)}
+                    className="px-2 py-1 rounded-lg border border-slate-200 text-xs font-semibold bg-white"
+                  >
+                    <option value="400">400 m (Gentle)</option>
+                    <option value="800">800 m (Moderate)</option>
+                    <option value="1200">1.2 km (Standard)</option>
+                    <option value="2500">2.5 km (Active)</option>
+                  </select>
+                </div>
+              </div>
             </div>
           )}
 

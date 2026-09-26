@@ -180,6 +180,33 @@ export default function PlannerPageView() {
         </div>
       )}
 
+      {/* Active Traveler Requirements Indicator */}
+      <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200/80 flex items-center justify-between text-xs">
+        <div className="flex items-center gap-2">
+          <span className="text-sm">
+            {journeyState?.traveler?.mobility === 'wheelchair' ? '♿' :
+             journeyState?.traveler?.mobility === 'elderly' ? '🧓' :
+             journeyState?.traveler?.mobility === 'visually_impaired' ? '👁️' : '🚶'}
+          </span>
+          <div>
+            <span className="font-bold text-slate-800">{journeyState?.traveler?.name || 'Traveler'}</span>
+            <span className="text-slate-500 ml-1 text-[11px]">
+              ({journeyState?.traveler?.mobility === 'wheelchair' ? 'Wheelchair • Step-Free' :
+                journeyState?.traveler?.mobility === 'elderly' ? 'Senior • Gentle Pace' :
+                journeyState?.traveler?.mobility === 'visually_impaired' ? 'Visual Assistance' : 'Standard Mobility'}
+               {journeyState?.traveler?.stairsAllowed === false ? ' • Avoid Stairs' : ''})
+            </span>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => navigate('/profile')}
+          className="text-brand-600 hover:text-brand-700 font-bold text-[11px] underline"
+        >
+          Edit
+        </button>
+      </div>
+
       {/* Journey Description */}
       <div>
         <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">

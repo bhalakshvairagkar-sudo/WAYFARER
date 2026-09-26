@@ -26,7 +26,17 @@ const registerSchema = z.object({
     locationPrecision: z.enum(['precise', 'approximate']).optional().default('precise'),
     allowSharing: z.boolean().optional().default(true),
     retentionDays: z.number().min(1).max(365).optional().default(30)
-  }).optional()
+  }).optional(),
+  travelerProfile: z.object({
+    mobility: z.string().optional().default('standard'),
+    stairsAllowed: z.boolean().optional().default(true),
+    needsElevator: z.boolean().optional().default(false),
+    maxWalkingDistanceMeters: z.number().optional().default(1000),
+    walkingTolerance: z.string().optional().default('medium'),
+    crowdTolerance: z.string().optional().default('medium'),
+    safetyPriority: z.string().optional().default('high'),
+    preferShade: z.boolean().optional().default(false)
+  }).optional().default({})
 });
 
 const loginSchema = z.object({
@@ -47,7 +57,8 @@ function signToken(user) {
       id: user._id ? user._id.toString() : user.id,
       email: user.email,
       name: user.name,
-      role: user.role
+      role: user.role,
+      travelerProfile: user.travelerProfile || { mobility: 'standard', stairsAllowed: true, needsElevator: false }
     },
     getJwtSecret(),
     { expiresIn }
@@ -57,7 +68,18 @@ function signToken(user) {
 // 1. User Registration
 router.post('/register', authRateLimiter, validateBody(registerSchema), async (req, res, next) => {
   try {
-    const { email, password, name, role, privacySettings } = req.body;
+    const { email, password, name, role, privacySettings, travelerProfile } = req.body;
+    const defaultProfile = {
+      mobility: 'standard',
+      stairsAllowed: true,
+      needsElevator: false,
+      maxWalkingDistanceMeters: 1000,
+      walkingTolerance: 'medium',
+      crowdTolerance: 'medium',
+      safetyPriority: 'high',
+      preferShade: false,
+      ...(travelerProfile || {})
+    };
 
     if (isUsingMemoryFallback()) {
       // In-Memory Fallback implementation
@@ -74,6 +96,7 @@ router.post('/register', authRateLimiter, validateBody(registerSchema), async (r
         role: role || 'USER',
         passwordHash,
         privacySettings: privacySettings || { locationPrecision: 'precise', allowSharing: true, retentionDays: 30 },
+        travelerProfile: defaultProfile,
         createdAt: new Date().toISOString()
       };
 
@@ -91,7 +114,14 @@ router.post('/register', authRateLimiter, validateBody(registerSchema), async (r
         success: true,
         message: 'Registration successful',
         token,
-        user: { id: newUser.id, email: newUser.email, name: newUser.name, role: newUser.role, privacySettings: newUser.privacySettings }
+        user: {
+          id: newUser.id,
+          email: newUser.email,
+          name: newUser.name,
+          role: newUser.role,
+          privacySettings: newUser.privacySettings,
+          travelerProfile: newUser.travelerProfile
+        }
       });
     }
 
@@ -106,7 +136,8 @@ router.post('/register', authRateLimiter, validateBody(registerSchema), async (r
       passwordHash: password, // Pre-save hook hashes this
       name,
       role,
-      privacySettings
+      privacySettings,
+      travelerProfile: defaultProfile
     });
 
     await user.save();
@@ -128,7 +159,8 @@ router.post('/register', authRateLimiter, validateBody(registerSchema), async (r
         email: user.email,
         name: user.name,
         role: user.role,
-        privacySettings: user.privacySettings
+        privacySettings: user.privacySettings,
+        travelerProfile: user.travelerProfile
       }
     });
   } catch (err) {
@@ -186,7 +218,8 @@ router.post('/login', authRateLimiter, validateBody(loginSchema), async (req, re
         email: user.email,
         name: user.name,
         role: user.role,
-        privacySettings: user.privacySettings
+        privacySettings: user.privacySettings,
+        travelerProfile: user.travelerProfile || { mobility: 'standard', stairsAllowed: true, needsElevator: false }
       }
     });
   } catch (err) {
@@ -204,7 +237,14 @@ router.get('/me', authenticateToken, async (req, res, next) => {
       }
       return res.json({
         success: true,
-        user: { id: user.id, email: user.email, name: user.name, role: user.role, privacySettings: user.privacySettings }
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          role: user.role,
+          privacySettings: user.privacySettings,
+          travelerProfile: user.travelerProfile || { mobility: 'standard', stairsAllowed: true, needsElevator: false }
+        }
       });
     }
 
@@ -220,7 +260,8 @@ router.get('/me', authenticateToken, async (req, res, next) => {
         email: user.email,
         name: user.name,
         role: user.role,
-        privacySettings: user.privacySettings
+        privacySettings: user.privacySettings,
+        travelerProfile: user.travelerProfile || { mobility: 'standard', stairsAllowed: true, needsElevator: false }
       }
     });
   } catch (err) {
@@ -249,6 +290,57 @@ router.put('/privacy', authenticateToken, validateBody(privacySchema), async (re
     res.json({
       success: true,
       privacySettings: user.privacySettings
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// 5. Update Traveler Requirements & Profile Settings
+router.put('/profile', authenticateToken, async (req, res, next) => {
+  try {
+    const { name, travelerProfile } = req.body;
+
+    if (isUsingMemoryFallback()) {
+      const user = inMemoryStore.users.get(req.user.email);
+      if (!user) return res.status(404).json({ success: false, error: 'User not found' });
+      if (name) user.name = name;
+      if (travelerProfile) {
+        user.travelerProfile = { ...(user.travelerProfile || {}), ...travelerProfile };
+      }
+      return res.json({
+        success: true,
+        message: 'Profile updated successfully',
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          role: user.role,
+          privacySettings: user.privacySettings,
+          travelerProfile: user.travelerProfile
+        }
+      });
+    }
+
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ success: false, error: 'User not found' });
+    if (name) user.name = name;
+    if (travelerProfile) {
+      user.travelerProfile = { ...(user.travelerProfile || {}), ...travelerProfile };
+    }
+    await user.save();
+
+    res.json({
+      success: true,
+      message: 'Profile updated successfully',
+      user: {
+        id: user._id.toString(),
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        privacySettings: user.privacySettings,
+        travelerProfile: user.travelerProfile
+      }
     });
   } catch (err) {
     next(err);

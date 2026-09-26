@@ -4,40 +4,78 @@ import { User, Shield, Accessibility, EyeOff, CheckCircle } from 'lucide-react';
 export default function TravelerProfileCard({ traveler, weights }) {
   if (!traveler) return null;
 
+  const isWheelchair = traveler.mobility === 'wheelchair' || traveler.stairsAllowed === false;
+  const isSenior = traveler.mobility === 'elderly' || traveler.mobility === 'senior';
+  const isVisual = traveler.mobility === 'visually_impaired' || traveler.mobility === 'blind';
+
+  const mobilityLabel = isWheelchair
+    ? 'Wheelchair (Step-Free)'
+    : isSenior
+    ? 'Senior / Low Walking'
+    : isVisual
+    ? 'Visual Assistance'
+    : 'Standard Mobility';
+
+  const mobilityIcon = isWheelchair ? '♿' : isSenior ? '🧓' : isVisual ? '👁️' : '🚶';
+
   return (
     <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-soft">
       <div className="flex items-center gap-3 mb-4 pb-3 border-b border-slate-100">
         <div className="w-10 h-10 rounded-full bg-brand-100 text-brand-700 flex items-center justify-center font-bold text-sm">
-          {traveler.name ? traveler.name.charAt(0) : 'A'}
+          {traveler.name ? traveler.name.charAt(0).toUpperCase() : 'T'}
         </div>
         <div>
           <h3 className="font-extrabold text-sm text-slate-900 leading-tight">
-            {traveler.name || 'Aditi'}
+            {traveler.name || 'Wayfarer Traveler'}
           </h3>
           <span className="text-[11px] font-semibold text-slate-500 flex items-center gap-1">
             <span className="w-1.5 h-1.5 rounded-full bg-brand-600"></span>
-            {traveler.mobility || 'Wheelchair Solo'}
+            {mobilityLabel}
           </span>
         </div>
       </div>
 
-      {/* Constraints & Priorities Badges */}
+      {/* Dynamic Constraints & Priorities Badges */}
       <div className="space-y-1.5 mb-4 text-xs font-semibold">
         <div className="flex items-center gap-2 text-slate-700 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-100">
-          <span>♿</span>
-          <span>Wheelchair (Step-free)</span>
+          <span>{mobilityIcon}</span>
+          <span>{mobilityLabel}</span>
         </div>
+
+        {traveler.stairsAllowed === false || traveler.avoidStairs || traveler.needsElevator ? (
+          <div className="flex items-center gap-2 text-rose-700 bg-rose-50 px-2.5 py-1 rounded-lg border border-rose-100">
+            <span>🚫</span>
+            <span>Avoid stairs (Elevators required)</span>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 text-slate-700 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-100">
+            <span>🪜</span>
+            <span>Stairs permitted</span>
+          </div>
+        )}
+
+        {traveler.maxWalkingDistanceMeters && (
+          <div className="flex items-center gap-2 text-slate-700 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-100">
+            <span>🚶</span>
+            <span>Max walking: {traveler.maxWalkingDistanceMeters}m</span>
+          </div>
+        )}
+
+        {traveler.preferShade && (
+          <div className="flex items-center gap-2 text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-100">
+            <span>🌳</span>
+            <span>Shaded paths preferred</span>
+          </div>
+        )}
+
         <div className="flex items-center gap-2 text-slate-700 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-100">
-          <span>🚫</span>
-          <span>Avoid stairs & curbs</span>
+          <span>{traveler.crowdTolerance === 'low' ? '🟡' : '🟢'}</span>
+          <span>{traveler.crowdTolerance === 'low' ? 'Low crowd tolerance' : 'Normal crowd tolerance'}</span>
         </div>
+
         <div className="flex items-center gap-2 text-slate-700 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-100">
-          <span>🟡</span>
-          <span>Low crowd tolerance</span>
-        </div>
-        <div className="flex items-center gap-2 text-slate-700 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-100">
-          <span>🔴</span>
-          <span>High safety priority</span>
+          <span>{traveler.safetyPriority === 'high' || traveler.safetyPriority === 'maximum' ? '🔴' : '🛡️'}</span>
+          <span>{traveler.safetyPriority === 'high' || traveler.safetyPriority === 'maximum' ? 'High safety priority' : 'Standard safety priority'}</span>
         </div>
       </div>
 

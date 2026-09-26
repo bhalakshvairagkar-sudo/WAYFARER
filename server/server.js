@@ -106,7 +106,14 @@ app.use("/api/community", communityRoutes);
 // 10. Default Preloaded Journey (Optional Auth: Supports Guest/Demo or Authenticated Traveler)
 app.get("/api/journey/default", optionalAuth, (req, res, next) => {
   try {
-    const traveler = req.user ? { ...DEFAULT_TRAVELER, name: req.user.name, email: req.user.email } : DEFAULT_TRAVELER;
+    const traveler = req.user
+      ? {
+          ...DEFAULT_TRAVELER,
+          name: req.user.name || DEFAULT_TRAVELER.name,
+          email: req.user.email,
+          ...(req.user.travelerProfile || {})
+        }
+      : DEFAULT_TRAVELER;
     const weights = deriveTravelerWeights(traveler);
     const segments = segmentJourney(DEFAULT_STOPS, traveler);
     const scoreResult = calculateOverallJourneyScore(segments);

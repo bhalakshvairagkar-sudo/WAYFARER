@@ -48,6 +48,40 @@ const UserSchema = new mongoose.Schema(
         min: 1,
         max: 365
       }
+    },
+    travelerProfile: {
+      mobility: {
+        type: String,
+        default: 'standard'
+      },
+      stairsAllowed: {
+        type: Boolean,
+        default: true
+      },
+      needsElevator: {
+        type: Boolean,
+        default: false
+      },
+      maxWalkingDistanceMeters: {
+        type: Number,
+        default: 1000
+      },
+      walkingTolerance: {
+        type: String,
+        default: 'medium'
+      },
+      crowdTolerance: {
+        type: String,
+        default: 'medium'
+      },
+      safetyPriority: {
+        type: String,
+        default: 'high'
+      },
+      preferShade: {
+        type: Boolean,
+        default: false
+      }
     }
   },
   {

@@ -16,22 +16,44 @@ import {
   MapPin
 } from 'lucide-react';
 import { useJourney } from '../context/JourneyContext.jsx';
+import { useAuth } from '../context/AuthContext.jsx';
 
 export default function ProfilePageView() {
   const navigate = useNavigate();
   const { journeyState, updateTravelerProfile, parsePrompt, isLoading } = useJourney();
+  const { user, isAuthenticated, updateProfile } = useAuth();
 
   const [promptText, setPromptText] = useState(
     "I use a power wheelchair, cannot use stairs, prefer step-free gentle ramps, dislike crowded bottlenecks, and prioritize personal safety and accessible transit."
   );
 
-  const [travelerName, setTravelerName] = useState(journeyState?.traveler?.name || 'Aditi');
-  const [mobility, setMobility] = useState(journeyState?.traveler?.mobility || 'wheelchair');
-  const [stairsAllowed, setStairsAllowed] = useState(journeyState?.traveler?.stairsAllowed || false);
-  const [safetyPriority, setSafetyPriority] = useState(journeyState?.traveler?.safetyPriority || 'high');
-  const [crowdTolerance, setCrowdTolerance] = useState(journeyState?.traveler?.crowdTolerance || 'low');
+  const [travelerName, setTravelerName] = useState(user?.name || journeyState?.traveler?.name || 'Traveler');
+  const [mobility, setMobility] = useState(user?.travelerProfile?.mobility || journeyState?.traveler?.mobility || 'standard');
+  const [stairsAllowed, setStairsAllowed] = useState(
+    user?.travelerProfile?.stairsAllowed !== undefined
+      ? user.travelerProfile.stairsAllowed
+      : journeyState?.traveler?.stairsAllowed !== undefined
+      ? journeyState.traveler.stairsAllowed
+      : true
+  );
+  const [safetyPriority, setSafetyPriority] = useState(user?.travelerProfile?.safetyPriority || journeyState?.traveler?.safetyPriority || 'high');
+  const [crowdTolerance, setCrowdTolerance] = useState(user?.travelerProfile?.crowdTolerance || journeyState?.traveler?.crowdTolerance || 'medium');
   const [budgetPriority, setBudgetPriority] = useState(journeyState?.traveler?.budget || 'medium');
+  const [saveSuccess, setSaveSuccess] = useState(false);
   const [parsedConfirmation, setParsedConfirmation] = useState(null);
+
+  // Sync with user session changes
+  React.useEffect(() => {
+    if (user) {
+      if (user.name) setTravelerName(user.name);
+      if (user.travelerProfile) {
+        if (user.travelerProfile.mobility) setMobility(user.travelerProfile.mobility);
+        if (user.travelerProfile.stairsAllowed !== undefined) setStairsAllowed(user.travelerProfile.stairsAllowed);
+        if (user.travelerProfile.safetyPriority) setSafetyPriority(user.travelerProfile.safetyPriority);
+        if (user.travelerProfile.crowdTolerance) setCrowdTolerance(user.travelerProfile.crowdTolerance);
+      }
+    }
+  }, [user]);
 
   const handleUnderstandNeeds = async () => {
     try {
@@ -62,15 +84,45 @@ export default function ProfilePageView() {
     }
   };
 
-  const handleContinueToPlan = () => {
-    updateTravelerProfile({
+  const handleSaveProfile = async () => {
+    const updatedProfile = {
       name: travelerName,
       mobility,
       stairsAllowed,
       safetyPriority,
       crowdTolerance,
-      budget: budgetPriority
-    });
+      budget: budgetPriority,
+      avoidStairs: !stairsAllowed || mobility === 'wheelchair',
+      needsElevator: !stairsAllowed || mobility === 'wheelchair'
+    };
+
+    updateTravelerProfile(updatedProfile);
+
+    if (isAuthenticated && updateProfile) {
+      try {
+        await updateProfile({
+          name: travelerName,
+          travelerProfile: {
+            mobility,
+            stairsAllowed,
+            needsElevator: !stairsAllowed || mobility === 'wheelchair',
+            safetyPriority,
+            crowdTolerance
+          }
+        });
+        setSaveSuccess(true);
+        setTimeout(() => setSaveSuccess(false), 3000);
+      } catch (err) {
+        console.warn('Failed to sync profile with server:', err);
+      }
+    } else {
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 3000);
+    }
+  };
+
+  const handleContinueToPlan = async () => {
+    await handleSaveProfile();
     navigate('/planner');
   };
 
@@ -88,7 +140,24 @@ export default function ProfilePageView() {
             Manage your mobility needs, accessibility preferences, and past journeys.
           </p>
         </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleSaveProfile}
+            className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-xs transition flex items-center gap-2"
+          >
+            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+            <span>Save Profile</span>
+          </button>
+        </div>
       </div>
+
+      {saveSuccess && (
+        <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center gap-2 animate-in fade-in">
+          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+          <span>Profile requirements updated successfully! Route recommendations and scoring have adapted to your needs.</span>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         

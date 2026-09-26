@@ -57,11 +57,11 @@ export async function checkHealth() {
 // Authentication & User Profile Endpoints
 // -------------------------------------------------------------
 
-export async function registerUser({ email, password, name, role = 'USER', privacySettings }) {
+export async function registerUser({ email, password, name, role = 'USER', privacySettings, travelerProfile }) {
   const res = await fetch(`${API_BASE}/auth/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password, name, role, privacySettings })
+    body: JSON.stringify({ email, password, name, role, privacySettings, travelerProfile })
   });
 
   const data = await res.json();
@@ -73,6 +73,20 @@ export async function registerUser({ email, password, name, role = 'USER', priva
     localStorage.setItem('wayfarer_user', JSON.stringify(data.user));
   }
   return data;
+}
+
+export async function updateUserProfile(profileData) {
+  const res = await fetch(`${API_BASE}/auth/profile`, {
+    method: 'PUT',
+    headers: getHeaders(),
+    body: JSON.stringify(profileData)
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to update profile');
+  if (data.user) {
+    localStorage.setItem('wayfarer_user', JSON.stringify(data.user));
+  }
+  return data.user;
 }
 
 export async function loginUser({ email, password }) {
