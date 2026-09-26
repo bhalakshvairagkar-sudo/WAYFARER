@@ -29,6 +29,8 @@ import ExplanationCard from '../components/dashboard/ExplanationCard.jsx';
 import SafetyVerificationModal from '../components/dashboard/SafetyVerificationModal.jsx';
 import CopilotChat from '../components/dashboard/CopilotChat.jsx';
 import CommunityReportModal from '../components/common/CommunityReportModal.jsx';
+import JourneyHealthWidget from '../components/dashboard/JourneyHealthWidget.jsx';
+import CommunityConfirmationCard from '../components/dashboard/CommunityConfirmationCard.jsx';
 
 export default function LiveJourneyPageView() {
   const navigate = useNavigate();
@@ -65,7 +67,55 @@ export default function LiveJourneyPageView() {
 
   const dashboardContent = (
     <div className="space-y-6">
-      {/* Community Evidence Intelligence Bar */}
+      {/* 1. Active Incident Confirmation & Hazard Alert ("Is this still happening?") */}
+      {(journeyState?.eventRecord || activeSegment?.activeAdvisory) && (
+        <CommunityConfirmationCard
+          incident={{
+            id: journeyState.eventRecord?.id || activeSegment.activeAdvisory?.incidentId || 'INC-LIVE',
+            title: journeyState.eventRecord?.reason || activeSegment.activeAdvisory?.title || 'Elevator outage reported near active transit ramp',
+            severity: journeyState.eventRecord?.severity > 0.7 ? 'CRITICAL' : 'HIGH',
+            timeText: 'Active Disruption Detected'
+          }}
+          onFeedbackSubmitted={(ans) => {
+            console.log('[Community Feedback Submitted]:', ans);
+          }}
+        />
+      )}
+
+      {/* 2. Route Adapted Banner with Why Did This Change CTA */}
+      {journeyState?.eventRecord?.routeChanged && (
+        <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 shadow-soft flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-black text-sm shrink-0 shadow-sm">
+              ✓
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-200 text-emerald-900">
+                  ROUTE AUTOMATICALLY ADAPTED
+                </span>
+                <span className="text-xs font-bold text-emerald-800">
+                  Promoted {recommendedRoute?.name || 'Route C (Plateau Bypass)'}
+                </span>
+              </div>
+              <p className="text-[11px] text-emerald-700 mt-0.5">
+                Step-free accessibility preserved. Bypasses affected elevator on {journeyState.eventRecord.segmentId || 'S3'}.
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => navigate(`/recovery/${activeSegmentId || 'S3'}`)}
+            className="px-3.5 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs transition flex items-center gap-1.5 self-start sm:self-auto shrink-0 shadow-2xs"
+          >
+            <span>WHY DID WAYFARER CHANGE?</span>
+            <ChevronRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
+      {/* 3. Community Evidence Intelligence Bar */}
       <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-lg bg-orange-100 text-orange-600 flex items-center justify-center">
@@ -86,6 +136,10 @@ export default function LiveJourneyPageView() {
         </button>
       </div>
 
+      {/* 4. Journey Health Multi-Axis Resilience Card */}
+      <JourneyHealthWidget journeyState={journeyState} />
+
+      {/* 5. Journey Timeline Sequence */}
       <JourneyTimeline 
         segments={segments}
         activeSegmentId={activeSegmentId}
@@ -95,18 +149,6 @@ export default function LiveJourneyPageView() {
       <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
         <div className="md:col-span-4 space-y-6">
           <CurrentSegmentCard segment={activeSegment} />
-          
-          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-soft">
-            <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-4 flex items-center gap-2">
-              <Compass className="w-4 h-4 text-brand-600" />
-              Dynamic Score
-            </h3>
-            <div className="flex flex-col items-center">
-              <JourneyScoreGauge score={journeyState.overallScore || 92} />
-              <ScoreBreakdownCard scores={recommendedRoute || {}} />
-            </div>
-          </div>
-          
           <DownstreamImpactCard impacts={journeyState.downstreamImpacts || []} />
         </div>
         

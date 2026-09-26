@@ -321,3 +321,19 @@ export async function simulateCommunityScenario(scenario) {
   }
 }
 
+export async function confirmIncidentFeedback(incidentId, feedbackPayload = {}) {
+  try {
+    const res = await fetch(`${API_BASE}/community/incidents/${incidentId}/confirm`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify(feedbackPayload)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to submit feedback');
+    return data;
+  } catch (err) {
+    console.warn('[API Service] Feedback submission failed or running offline:', err.message);
+    return { success: true, offline: true, ...feedbackPayload };
+  }
+}
+
