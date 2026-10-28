@@ -13,7 +13,9 @@ import express from "express";
 import {
   buildDigitalTwinState,
   runWhatIfSimulation,
-  PREBAKED_SCENARIOS
+  resetSimulationState,
+  PREBAKED_SCENARIOS,
+  SUPPORTED_SCENARIO_TYPES
 } from "../engine/digitalTwinEngine.js";
 import { fetchLiveWeather } from "../engine/weatherProvider.js";
 import { getSocialSignals } from "../engine/socialSignalProvider.js";
@@ -57,12 +59,16 @@ router.get("/current", optionalAuth, async (req, res, next) => {
  */
 router.post("/simulate", aiRateLimiter, optionalAuth, async (req, res, next) => {
   try {
-    const { journeyState, whatIfParams } = req.body || {};
+    const { journeyState, whatIfParams, scenario } = req.body || {};
 
     const simulationResult = await runWhatIfSimulation(
       journeyState || {},
-      whatIfParams || { rainfallMm: 45, stormDurationHours: 2 }
+      scenario || whatIfParams || { rainfallMm: 45, stormDurationHours: 2 }
     );
+
+    if (!simulationResult.success && simulationResult.status === 'UNSUPPORTED_SCENARIO') {
+      return res.status(400).json(simulationResult);
+    }
 
     const explanation = await generateDigitalTwinExplanation(
       simulationResult.simulatedTwin,
@@ -76,6 +82,20 @@ router.post("/simulate", aiRateLimiter, optionalAuth, async (req, res, next) => 
       aiSource: explanation.source,
       aiBadge: explanation.badge
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * POST /api/digital-twin/simulate/reset
+ * Resets simulation state and restores the baseline comparison.
+ */
+router.post("/simulate/reset", optionalAuth, async (req, res, next) => {
+  try {
+    const { journeyState } = req.body || {};
+    const resetResult = resetSimulationState(journeyState || {});
+    res.json(resetResult);
   } catch (err) {
     next(err);
   }
