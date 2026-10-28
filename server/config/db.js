@@ -14,7 +14,9 @@ let isInMemoryFallback = false;
 export const inMemoryStore = {
   users: new Map(),
   locationShares: new Map(),
-  locationHistory: new Map()
+  locationHistory: new Map(),
+  journeys: new Map(),
+  decisions: new Map()
 };
 
 export async function connectDB() {

@@ -663,6 +663,7 @@ export async function processEventAndReroute({
   // ─────────────────────────────────────────────────────────────
   let committedVersion = currentVersion;
   let transitionRecord = null;
+  let decisionRecord = null;
 
   if (autoCommit) {
     lifecycleState = ROUTE_LIFECYCLE.ACCEPTED;
@@ -694,6 +695,35 @@ export async function processEventAndReroute({
     journeyState.eventHistory = [eventRecord, ...(journeyState.eventHistory || [])];
     journeyState.routeTransitions = [transitionRecord, ...(journeyState.routeTransitions || [])];
 
+    decisionRecord = {
+      decisionId: `dec-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
+      journeyId: journeyState.id || journeyState._id || 'default-journey',
+      decisionType: 'REROUTE_ACCEPTED',
+      triggerEventId: event.id || event.eventId || eventRecord.id,
+      previousRouteVersion: currentVersion,
+      newRouteVersion: committedVersion,
+      affectedSegmentId: targetSegId,
+      previousRouteId: currentRecRoute?.id,
+      newRouteId: newRecRoute.id,
+      fromRoute: currentRecRoute ? { id: currentRecRoute.id, name: currentRecRoute.name, score: currentRecRoute.score } : null,
+      toRoute: { id: newRecRoute.id, name: newRecRoute.name, score: newRecRoute.score },
+      reasonCodes: (whyNotData && Array.isArray(whyNotData))
+        ? (whyNotData.find(w => w.routeId === currentRecRoute?.id)?.reasonCodes || [event.type || 'ROUTE_SEGMENT_IMPACTED'])
+        : [event.type || 'ROUTE_SEGMENT_IMPACTED'],
+      scoreBreakdown: scoreBreakdown || null,
+      factorChanges: explanationResult?.structuredChange?.factorChanges || [],
+      estimatedDurationMinutes: newRecRoute.durationMin,
+      actualDurationMinutes: typeof event.actualDurationMinutes === 'number' ? event.actualDurationMinutes : null,
+      durationDeltaMinutes: durationDeltaMin,
+      scoreDelta,
+      storedGeometry: newRecRoute.coordinates || newRecRoute.geometry || [],
+      userAccepted: true,
+      actor: 'SYSTEM_AUTONOMIC',
+      createdAt: new Date().toISOString()
+    };
+
+    journeyState.decisionRecords = [decisionRecord, ...(journeyState.decisionRecords || [])];
+
     // Persist to MongoDB if connected
     if (isDbConnected() && (journeyState._id || journeyState.id)) {
       try {
@@ -707,7 +737,8 @@ export async function processEventAndReroute({
           journeyHealth,
           $push: {
             eventHistory: eventRecord,
-            routeTransitions: transitionRecord
+            routeTransitions: transitionRecord,
+            decisionRecords: decisionRecord
           }
         });
       } catch (e) {
@@ -729,6 +760,7 @@ export async function processEventAndReroute({
     newRecommendedRoute: newRecRoute,
     eventRecord,
     transition: transitionRecord,
+    decisionRecord: decisionRecord || null,
     downstreamImpact: downstreamResult,
     graphImpact: eventResult.graphImpact || null,
     overallScore: overallScoreResult.overallScore,

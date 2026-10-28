@@ -92,6 +92,22 @@ const JourneySchema = new mongoose.Schema(
     notifications: {
       type: Array,
       default: []
+    },
+    decisionRecords: {
+      type: Array,
+      default: []
+    },
+    actualDurationMinutes: {
+      type: Number,
+      default: null
+    },
+    retentionExpiresAt: {
+      type: Date,
+      default: null
+    },
+    isDeleted: {
+      type: Boolean,
+      default: false
     }
   },
   {

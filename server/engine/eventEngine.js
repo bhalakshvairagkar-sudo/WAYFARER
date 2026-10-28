@@ -339,7 +339,7 @@ export function applyJourneyEvent(currentJourneyState, eventPayload) {
   const timeString = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
 
   const eventRecord = {
-    id: `event-${Date.now()}`,
+    id: eventPayload.id || eventPayload.eventId || `event-${Date.now()}`,
     timestamp: timeString,
     type,
     segmentId,
