@@ -33,7 +33,8 @@ export function applyJourneyEvent(currentJourneyState, eventPayload) {
   const firstSegId = currentJourneyState.segments?.[0]?.id || "S1";
   const { type, segmentId = firstSegId, routeId, severity = 0.5, reason = "Real-world environmental change", delta = {}, delayMinutes, nodeId } = eventPayload;
 
-  const weights = deriveTravelerWeights(currentJourneyState.traveler);
+  const traveler = currentJourneyState.traveler;
+  const weights = deriveTravelerWeights(traveler);
   const segments = JSON.parse(JSON.stringify(currentJourneyState.segments || []));
   const stops = currentJourneyState.stops || [];
 
@@ -66,12 +67,13 @@ export function applyJourneyEvent(currentJourneyState, eventPayload) {
       return {
         ...route,
         accessibility: newAccessibility,
+        elevatorAvailable: false,
         activeEvent: { type, reason, note: eventNote, timestamp: new Date().toISOString() }
       };
     });
 
-    // Re-rank
-    const reranked = rankSegmentRoutes(targetSegment.candidateRoutes, weights);
+    // Re-rank with hard constraint validation
+    const reranked = rankSegmentRoutes(targetSegment.candidateRoutes, weights, traveler);
     targetSegment.candidateRoutes = reranked;
     const newRec = reranked.find(r => r.isRecommended) || reranked[0];
     newRecommendedId = newRec.id;
@@ -113,7 +115,7 @@ export function applyJourneyEvent(currentJourneyState, eventPayload) {
     });
 
     // Re-rank
-    const reranked = rankSegmentRoutes(targetSegment.candidateRoutes, weights);
+    const reranked = rankSegmentRoutes(targetSegment.candidateRoutes, weights, traveler);
     targetSegment.candidateRoutes = reranked;
     const newRec = reranked.find(r => r.isRecommended) || reranked[0];
     newRecommendedId = newRec.id;
@@ -183,7 +185,7 @@ export function applyJourneyEvent(currentJourneyState, eventPayload) {
       }
 
       // Re-rank existing routes
-      const reranked = rankSegmentRoutes(targetSegment.candidateRoutes, weights);
+      const reranked = rankSegmentRoutes(targetSegment.candidateRoutes, weights, traveler);
       targetSegment.candidateRoutes = reranked;
       const newRec = reranked.find(r => r.isRecommended) || reranked[0];
       newRecommendedId = newRec.id;
@@ -225,7 +227,7 @@ export function applyJourneyEvent(currentJourneyState, eventPayload) {
       };
     });
 
-    const reranked = rankSegmentRoutes(targetSegment.candidateRoutes, weights);
+    const reranked = rankSegmentRoutes(targetSegment.candidateRoutes, weights, traveler);
     targetSegment.candidateRoutes = reranked;
     const newRec = reranked.find(r => r.isRecommended) || reranked[0];
     newRecommendedId = newRec.id;
@@ -259,7 +261,7 @@ export function applyJourneyEvent(currentJourneyState, eventPayload) {
       };
     });
 
-    const reranked = rankSegmentRoutes(targetSegment.candidateRoutes, weights);
+    const reranked = rankSegmentRoutes(targetSegment.candidateRoutes, weights, traveler);
     targetSegment.candidateRoutes = reranked;
     const newRec = reranked.find(r => r.isRecommended) || reranked[0];
     newRecommendedId = newRec.id;

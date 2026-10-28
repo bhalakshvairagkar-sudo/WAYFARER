@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Award, Info, Check, X, Shield, DollarSign } from 'lucide-react';
+import { Award, Info, Check, X, Shield, DollarSign, AlertTriangle, AlertCircle } from 'lucide-react';
 
 const FACTOR_META = {
   safety: { emoji: '🛡️', label: 'Safety', color: 'bg-emerald-500' },
@@ -32,6 +32,17 @@ export default function RouteComparisonMatrix({ candidateRoutes = [], activeSegm
         </span>
       </div>
 
+      {/* Limitation Notice if no compliant routes exist */}
+      {candidateRoutes.length > 0 && candidateRoutes.every(r => r.isEliminated || r.eligible === false) && (
+        <div className="mb-4 p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-900 flex items-start gap-2">
+          <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+          <div>
+            <strong className="block font-bold">Corridor Accessibility Limitation:</strong>
+            <span>No available route satisfies mandatory accessibility constraints for this corridor.</span>
+          </div>
+        </div>
+      )}
+
       {/* Comparison Table */}
       <div className="overflow-x-auto mb-4">
         <table className="w-full text-left text-xs border-collapse">
@@ -39,7 +50,7 @@ export default function RouteComparisonMatrix({ candidateRoutes = [], activeSegm
             <tr className="border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider bg-slate-50/70">
               <th className="py-2.5 px-3 rounded-l-lg">Route</th>
               <th className="py-2.5 px-2">Time</th>
-              <th className="py-2.5 px-2">♿</th>
+              <th className="py-2.5 px-2">♿ Access</th>
               <th className="py-2.5 px-2">🛡️</th>
               <th className="py-2.5 px-2">👥</th>
               <th className="py-2.5 px-2">💰</th>
@@ -50,7 +61,9 @@ export default function RouteComparisonMatrix({ candidateRoutes = [], activeSegm
             {candidateRoutes.map((route) => {
               const isRec = route.isRecommended;
               const isExpanded = route.id === expandedRouteId;
+              const isEliminated = route.isEliminated || route.eligible === false;
               const isDegraded = route.accessibility < 50;
+              const status = route.accessibilityStatus || (isEliminated ? 'INACCESSIBLE' : (route.isStepFree ? 'VERIFIED' : 'UNVERIFIED'));
               const costScore = route.cost !== undefined
                 ? (typeof route.cost === 'object' ? Math.max(0, 100 - Math.round((route.cost.estimated || 0) / 20)) : route.cost)
                 : 70;
@@ -60,7 +73,9 @@ export default function RouteComparisonMatrix({ candidateRoutes = [], activeSegm
                   <tr
                     onClick={() => setExpandedRouteId(isExpanded ? null : route.id)}
                     className={`cursor-pointer transition-colors ${
-                      isRec
+                      isEliminated
+                        ? 'bg-rose-50/30 text-slate-500 hover:bg-rose-50/50'
+                        : isRec
                         ? 'bg-emerald-50/60 font-bold hover:bg-emerald-50'
                         : (isExpanded ? 'bg-brand-50/50 hover:bg-brand-50' : 'hover:bg-slate-50')
                     }`}
@@ -68,29 +83,61 @@ export default function RouteComparisonMatrix({ candidateRoutes = [], activeSegm
                     <td className="py-3 px-3">
                       <div className="flex items-center gap-1.5">
                         <span className={`w-5 h-5 rounded-md flex items-center justify-center text-[10px] font-black ${
-                          isRec
+                          isEliminated
+                            ? 'bg-slate-400 text-white'
+                            : isRec
                             ? 'bg-emerald-600 text-white'
                             : (route.id === 'A' ? 'bg-amber-500 text-white' : 'bg-slate-700 text-white')
                         }`}>
                           {route.id}
                         </span>
-                        <span className="truncate max-w-[100px] sm:max-w-[140px] text-slate-900 text-[11px]">
-                          {route.name.replace(/^Route [A-C]:\s*/, '')}
-                        </span>
+                        <div className="truncate max-w-[100px] sm:max-w-[140px]">
+                          <span className={`truncate text-[11px] block ${isEliminated ? 'text-slate-600' : 'text-slate-900 font-medium'}`}>
+                            {route.name.replace(/^Route [A-C]:\s*/, '')}
+                          </span>
+                          {isEliminated && (
+                            <span className="text-[9px] font-bold text-rose-600 block uppercase">
+                              Ineligible
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </td>
                     <td className="py-3 px-2 text-slate-700 font-semibold">{route.durationMin}m</td>
-                    <td className={`py-3 px-2 font-bold ${isDegraded ? 'text-rose-600 bg-rose-50 rounded' : 'text-slate-800'}`}>
-                      {route.accessibility}
+                    <td className="py-3 px-2">
+                      <div className="flex items-center gap-1">
+                        <span className={`font-bold ${isDegraded || isEliminated ? 'text-rose-600' : 'text-slate-800'}`}>
+                          {route.accessibility}
+                        </span>
+                        {status === 'VERIFIED' && (
+                          <span className="text-[9px] font-extrabold px-1 rounded bg-emerald-100 text-emerald-800">
+                            ✓
+                          </span>
+                        )}
+                        {status === 'UNVERIFIED' && (
+                          <span className="text-[9px] font-extrabold px-1 rounded bg-amber-100 text-amber-800">
+                            ?
+                          </span>
+                        )}
+                        {status === 'INACCESSIBLE' && (
+                          <span className="text-[9px] font-extrabold px-1 rounded bg-rose-100 text-rose-800">
+                            ✕
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="py-3 px-2 text-slate-700 font-semibold">{route.safety}</td>
                     <td className="py-3 px-2 text-slate-700 font-semibold">{route.crowd}</td>
                     <td className="py-3 px-2 text-slate-700 font-semibold">{costScore}</td>
                     <td className="py-3 px-3 text-right">
                       <span className={`inline-flex items-center gap-1 text-xs font-black px-2 py-0.5 rounded-full ${
-                        isRec ? 'bg-emerald-600 text-white shadow-xs' : 'bg-slate-100 text-slate-800'
+                        isEliminated
+                          ? 'bg-rose-100 text-rose-700'
+                          : isRec
+                          ? 'bg-emerald-600 text-white shadow-xs'
+                          : 'bg-slate-100 text-slate-800'
                       }`}>
-                        {route.score} {isRec && '★'}
+                        {route.score} {isRec && '★'} {isEliminated && '✕'}
                       </span>
                     </td>
                   </tr>
@@ -169,6 +216,24 @@ export default function RouteComparisonMatrix({ candidateRoutes = [], activeSegm
               <li className="text-[11px] text-slate-500">Standard corridor infrastructure.</li>
             )}
           </ul>
+
+          {/* Rejection Reasons if Ineligible */}
+          {(selectedRoute.isEliminated || selectedRoute.eligible === false || (selectedRoute.rejectionReasons && selectedRoute.rejectionReasons.length > 0)) && (
+            <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-lg text-xs space-y-1">
+              <span className="font-extrabold text-rose-900 flex items-center gap-1.5 text-[11px]">
+                <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
+                Hard Constraint Violations (Eliminated):
+              </span>
+              <ul className="space-y-0.5">
+                {(selectedRoute.rejectionReasons || selectedRoute.violations || ['Route fails mandatory accessibility constraints']).map((reason, idx) => (
+                  <li key={idx} className="text-[11px] text-rose-800 flex items-center gap-1.5 font-medium">
+                    <span className="text-rose-500">•</span>
+                    <span>{reason}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       )}
 

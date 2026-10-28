@@ -7,7 +7,13 @@
  */
 
 import { securityLogger } from '../utils/securityLogger.js';
-import { deriveTravelerWeights, applyWeatherEvidenceToRoute } from '../engine/scoringEngine.js';
+import {
+  deriveTravelerWeights,
+  applyWeatherEvidenceToRoute,
+  rankSegmentRoutes,
+  validateRouteConstraints,
+  extractHardConstraints
+} from '../engine/scoringEngine.js';
 
 // Route cache with 1-hour TTL
 const routeCache = new Map();
@@ -212,9 +218,8 @@ async function queryOsrmRouting(origin, destination, waypoints = [], mode = 'wal
 function enrichRoutesWithScoring(routes, traveler = {}, weatherImpact = null) {
   const weights = deriveTravelerWeights(traveler);
   const isWheelchair = traveler.mobility === 'wheelchair' || traveler.stairsAllowed === false;
-  const isSenior = traveler.mobility === 'elderly' || traveler.mobility === 'senior';
 
-  const scored = routes.map((r, idx) => {
+  const preppedRoutes = routes.map((r, idx) => {
     let safety = idx === 0 ? 92 : idx === 1 ? 88 : 80;
     let accessibility = idx === 0 ? 95 : idx === 1 ? 90 : 65;
     let crowd = idx === 0 ? 84 : idx === 1 ? 88 : 70;
@@ -226,13 +231,8 @@ function enrichRoutesWithScoring(routes, traveler = {}, weatherImpact = null) {
       accessibility = 45;
     }
 
-    const score = Math.round(
-      safety * weights.safety +
-      accessibility * weights.accessibility +
-      crowd * weights.crowd +
-      convenience * weights.convenience +
-      cost * weights.cost
-    );
+    const hasStairs = isWheelchair && idx === 2;
+    const isStepFree = !hasStairs;
 
     return {
       ...r,
@@ -241,15 +241,17 @@ function enrichRoutesWithScoring(routes, traveler = {}, weatherImpact = null) {
       crowd,
       convenience,
       cost: { estimated: Math.round(r.distanceKm * 25), currency: 'INR' },
-      score,
-      compositeScore: score / 100,
-      isRecommended: idx === 0,
-      stepFree: isWheelchair ? idx !== 2 : true,
-      hasStairs: isWheelchair && idx === 2
+      stepFree: isStepFree,
+      isStepFree,
+      hasStairs,
+      elevatorAvailable: true
     };
   });
 
-  return scored.map(r => applyWeatherEvidenceToRoute(r, weatherImpact, weights));
+  // Rank with hard constraint validation: eliminates non-compliant routes before recommendation
+  const rankedRoutes = rankSegmentRoutes(preppedRoutes, weights, traveler);
+
+  return rankedRoutes.map(r => applyWeatherEvidenceToRoute(r, weatherImpact, weights));
 }
 
 /**

@@ -191,24 +191,68 @@ export function extractHardConstraints(traveler = {}) {
 
   const acc = traveler.accessibility || {};
   
-  const stairsAllowed = acc.stairsAllowed !== undefined
-    ? acc.stairsAllowed
-    : (traveler.stairsAllowed !== undefined ? traveler.stairsAllowed : (isWheelchair ? false : true));
+  // 1. Mandatory stairs prohibition
+  let stairsAllowed = true;
+  if (acc.stairsAllowed !== undefined) {
+    stairsAllowed = acc.stairsAllowed;
+  } else if (traveler.stairsAllowed !== undefined) {
+    stairsAllowed = traveler.stairsAllowed;
+  } else if (traveler.avoidStairs !== undefined) {
+    stairsAllowed = !traveler.avoidStairs;
+  } else if (isWheelchair) {
+    stairsAllowed = false;
+  }
 
-  const stepFreeRequired = acc.stepFreeRequired !== undefined
-    ? acc.stepFreeRequired
-    : (traveler.stepFreeRequired !== undefined ? traveler.stepFreeRequired : (isWheelchair ? true : false));
+  // 2. Mandatory continuous step-free requirement
+  let stepFreeRequired = false;
+  if (acc.stepFreeRequired !== undefined) {
+    stepFreeRequired = acc.stepFreeRequired;
+  } else if (traveler.stepFreeRequired !== undefined) {
+    stepFreeRequired = traveler.stepFreeRequired;
+  } else if (isWheelchair || stairsAllowed === false) {
+    stepFreeRequired = true;
+  }
 
-  const elevatorRequired = acc.elevatorRequired !== undefined
-    ? acc.elevatorRequired
-    : (traveler.elevatorRequired !== undefined ? traveler.elevatorRequired : (isWheelchair ? true : false));
+  // 3. Mandatory elevator continuity requirement
+  let elevatorRequired = false;
+  if (acc.elevatorRequired !== undefined) {
+    elevatorRequired = acc.elevatorRequired;
+  } else if (traveler.elevatorRequired !== undefined) {
+    elevatorRequired = traveler.elevatorRequired;
+  } else if (traveler.needsElevator !== undefined) {
+    elevatorRequired = traveler.needsElevator;
+  } else if (isWheelchair) {
+    elevatorRequired = true;
+  }
 
-  const rampRequired = acc.rampRequired !== undefined
-    ? acc.rampRequired
-    : (traveler.rampRequired !== undefined ? traveler.rampRequired : (traveler.rampsPreferred || false));
+  // 4. Mandatory ramp access requirement
+  let rampRequired = false;
+  if (acc.rampRequired !== undefined) {
+    rampRequired = acc.rampRequired;
+  } else if (traveler.rampRequired !== undefined) {
+    rampRequired = traveler.rampRequired;
+  } else if (traveler.rampsPreferred === true && isWheelchair) {
+    rampRequired = true;
+  }
 
-  const maxWalkDistanceKm = traveler.constraints?.maxWalkDistanceKm || traveler.maxWalkDistanceKm || null;
+  // 5. Maximum walking distance constraint (supports meters and km)
+  let maxWalkDistanceKm = null;
+  const rawDistMeters = traveler.maxWalkingDistanceMeters || traveler.constraints?.maxWalkingDistanceMeters;
+  if (typeof rawDistMeters === "number" && rawDistMeters > 0) {
+    maxWalkDistanceKm = Number((rawDistMeters / 1000).toFixed(2));
+  } else if (traveler.maxWalkDistanceKm || traveler.constraints?.maxWalkDistanceKm) {
+    maxWalkDistanceKm = traveler.maxWalkDistanceKm || traveler.constraints?.maxWalkDistanceKm;
+  }
+
   const arrivalDeadline = traveler.constraints?.arrivalDeadline || traveler.arrivalDeadline || null;
+
+  const activeConstraints = [
+    !stairsAllowed && "NO_STAIRS",
+    stepFreeRequired && "STEP_FREE_MANDATORY",
+    elevatorRequired && "ELEVATOR_MANDATORY",
+    rampRequired && "RAMP_MANDATORY",
+    maxWalkDistanceKm && `MAX_WALK_${maxWalkDistanceKm}KM`
+  ].filter(Boolean);
 
   return {
     isWheelchair,
@@ -217,52 +261,129 @@ export function extractHardConstraints(traveler = {}) {
     elevatorRequired,
     rampRequired,
     maxWalkDistanceKm,
-    arrivalDeadline
+    arrivalDeadline,
+    activeConstraints
   };
 }
 
 /**
+ * Determines and preserves canonical accessibility status of a candidate route.
+ * Guarantees that missing or incomplete accessibility data is NEVER presented as VERIFIED.
+ * @param {Object} route 
+ * @returns {"VERIFIED" | "UNVERIFIED" | "UNKNOWN" | "INACCESSIBLE" | "PARTIALLY_ACCESSIBLE"}
+ */
+export function determineRouteAccessibilityStatus(route) {
+  if (!route) return "UNKNOWN";
+
+  // Explicitly declared or persisted status
+  if (route.accessibilityStatus && ["VERIFIED", "UNVERIFIED", "UNKNOWN", "INACCESSIBLE", "PARTIALLY_ACCESSIBLE"].includes(route.accessibilityStatus)) {
+    return route.accessibilityStatus;
+  }
+
+  // Explicit inaccessibility flags
+  if (route.hasStairs === true || route.isStepFree === false || route.stepFree === false || route.elevatorAvailable === false) {
+    return "INACCESSIBLE";
+  }
+
+  const features = (route.accessibleFeatures || []).join(" ").toLowerCase();
+  const routeName = (route.name || "").toLowerCase();
+  const routeTagline = (route.tagline || "").toLowerCase();
+  const allText = `${routeName} ${routeTagline} ${features}`.trim();
+
+  const hasStairsPattern = /\b(stairs|steps|stairway|staircase|flight of steps|steep steps|cobblestone stairs)\b/i;
+  const negatesStairsPattern = /\b(no steps|zero steps|step-free|step free|without stairs|no stairs)\b/i;
+  const isAffirmativeStepFree = route.isStepFree === true || route.stepFree === true ||
+    negatesStairsPattern.test(allText) ||
+    /step-free ramped access|100% step-free|continuous.*ramp|barrier-free/i.test(allText);
+
+  if (hasStairsPattern.test(allText) && !negatesStairsPattern.test(allText)) {
+    return "INACCESSIBLE";
+  }
+
+  // Check if completely missing accessibility data
+  const hasScore = typeof route.accessibility === "number";
+  const hasFeatures = Array.isArray(route.accessibleFeatures) && route.accessibleFeatures.length > 0;
+  const hasStepFreeFlag = route.isStepFree !== undefined || route.stepFree !== undefined;
+  const hasAccessKeywords = hasStairsPattern.test(allText) || negatesStairsPattern.test(allText) || /ramp|elevator|lift|tactile|wheelchair|accessible|step-free/i.test(allText);
+
+  if (!hasScore && !hasFeatures && !hasStepFreeFlag && !hasAccessKeywords) {
+    return "UNKNOWN";
+  }
+
+  if (isAffirmativeStepFree) {
+    return "VERIFIED";
+  }
+
+  // Has some accessibility score or data, but lacks affirmative physical proof of continuous step-free access
+  return "UNVERIFIED";
+}
+
+/**
  * Validates a single candidate route against traveler hard constraints.
+ * Returns structured rejection reasons and canonical accessibility status.
  * @param {Object} route 
  * @param {Object} travelerOrConstraints 
- * @returns {Object} { valid: boolean, violations: string[] }
+ * @returns {Object} { eligible: boolean, valid: boolean, accessibilityStatus: string, rejectionReasons: string[], violations: string[] }
  */
 export function validateRouteConstraints(route, travelerOrConstraints = {}) {
-  if (!route) return { valid: false, violations: ["Route is undefined"] };
+  if (!route) {
+    return {
+      eligible: false,
+      valid: false,
+      accessibilityStatus: "UNKNOWN",
+      rejectionReasons: ["ROUTE_UNDEFINED"],
+      violations: ["Route is undefined"]
+    };
+  }
 
-  const constraints = (travelerOrConstraints.isWheelchair !== undefined || travelerOrConstraints.stairsAllowed !== undefined)
+  const constraints = Array.isArray(travelerOrConstraints.activeConstraints)
     ? travelerOrConstraints
     : extractHardConstraints(travelerOrConstraints);
 
   const violations = [];
+  const rejectionReasons = [];
   const features = (route.accessibleFeatures || []).join(" ").toLowerCase();
   const routeName = (route.name || "").toLowerCase();
   const routeTagline = (route.tagline || "").toLowerCase();
   const allText = `${routeName} ${routeTagline} ${features}`;
 
-  // 1. Stairs Check
+  // 1. Initial Accessibility Status Determination
+  let accessibilityStatus = determineRouteAccessibilityStatus(route);
+
+  // 2. Stairs Check
   const hasStairsPattern = /\b(stairs|steps|stairway|staircase|flight of steps|steep steps|cobblestone stairs)\b/i;
   const negatesStairsPattern = /\b(no steps|zero steps|step-free|step free|without stairs|no stairs)\b/i;
   const routeHasStairs = route.hasStairs === true || (hasStairsPattern.test(allText) && !negatesStairsPattern.test(allText));
 
   if (constraints.stairsAllowed === false && routeHasStairs) {
     violations.push("Route contains stairs/steps, violating traveler's step-free constraint");
+    rejectionReasons.push("KNOWN_STAIRS_PROHIBITED");
+    accessibilityStatus = "INACCESSIBLE";
   }
 
-  // 2. Step-Free Requirement
+  // 3. Step-Free Requirement & Missing/Unverified Data Handling
   const isStepFree = route.isStepFree === true || route.stepFree === true ||
     negatesStairsPattern.test(allText) ||
-    /step-free ramped access|100% step-free|continuous.*ramp/i.test(allText);
+    /step-free ramped access|100% step-free|continuous.*ramp|barrier-free/i.test(allText);
 
   if (constraints.stepFreeRequired) {
     if (route.isStepFree === false || route.stepFree === false) {
       violations.push("Route is marked as not step-free");
+      rejectionReasons.push("NOT_STEP_FREE");
+      accessibilityStatus = "INACCESSIBLE";
+    } else if (accessibilityStatus === "UNKNOWN" || accessibilityStatus === "UNVERIFIED" || (!isStepFree && !routeHasStairs)) {
+      // Missing or unverified accessibility data is NEVER presented as verified accessibility
+      violations.push("Required step-free access is unverified for this route");
+      rejectionReasons.push("REQUIRED_STEP_FREE_ACCESS_UNVERIFIED");
+      accessibilityStatus = "UNVERIFIED";
     } else if (routeHasStairs && !isStepFree) {
       violations.push("Route lacks continuous step-free access");
+      rejectionReasons.push("LACKS_CONTINUOUS_STEP_FREE");
+      accessibilityStatus = "INACCESSIBLE";
     }
   }
 
-  // 3. Elevator Requirement & Active Outage Disruption
+  // 4. Elevator Requirement & Active Outage Disruption
   const hasActiveElevatorDisruption = (
     (route.activeEvent?.type === "ACCESSIBILITY_DEGRADATION" || route.activeEvent?.type === "ELEVATOR_OUTAGE") &&
     /elevator|lift/i.test(route.activeEvent.reason || route.activeEvent.note || "")
@@ -272,21 +393,32 @@ export function validateRouteConstraints(route, travelerOrConstraints = {}) {
 
   if (constraints.elevatorRequired && elevatorUnavailable) {
     violations.push("Required elevator is unavailable or out of service on this route");
+    rejectionReasons.push("REQUIRED_ELEVATOR_OUTAGE");
+    accessibilityStatus = "INACCESSIBLE";
   }
 
-  // 4. Wheelchair Safe Mobility Accessibility Threshold (score < 50)
+  // 5. Wheelchair Safe Mobility Accessibility Threshold (score < 50)
   if (constraints.isWheelchair && route.accessibility !== undefined && route.accessibility < 50) {
     violations.push(`Route accessibility (${route.accessibility}/100) is below safe wheelchair mobility threshold (50)`);
+    rejectionReasons.push("BELOW_WHEELCHAIR_ACCESSIBILITY_THRESHOLD");
   }
 
-  // 5. Walking Distance Constraint
+  // 6. Walking Distance Constraint
   if (constraints.maxWalkDistanceKm && route.distanceKm && route.distanceKm > constraints.maxWalkDistanceKm) {
     violations.push(`Route distance (${route.distanceKm} km) exceeds maximum walking tolerance (${constraints.maxWalkDistanceKm} km)`);
+    rejectionReasons.push("EXCEEDS_MAX_WALK_DISTANCE");
   }
 
+  const eligible = rejectionReasons.length === 0;
+
   return {
-    valid: violations.length === 0,
-    violations
+    eligible,
+    valid: eligible, // backwards compatibility
+    accessibilityStatus,
+    rejectionReasons,
+    violations,     // backwards compatibility
+    hasStairs: routeHasStairs,
+    isStepFree: isStepFree && accessibilityStatus === "VERIFIED"
   };
 }
 
@@ -299,37 +431,50 @@ export function validateRouteConstraints(route, travelerOrConstraints = {}) {
  */
 export function filterValidRoutes(candidateRoutes = [], travelerOrConstraints = {}) {
   if (!candidateRoutes || candidateRoutes.length === 0) return [];
-  const constraints = (travelerOrConstraints.isWheelchair !== undefined || travelerOrConstraints.stairsAllowed !== undefined)
+  const constraints = Array.isArray(travelerOrConstraints.activeConstraints)
     ? travelerOrConstraints
     : extractHardConstraints(travelerOrConstraints);
 
   return candidateRoutes.filter(route => {
     const result = validateRouteConstraints(route, constraints);
-    return result.valid;
+    return result.eligible;
   });
 }
 
 /**
  * Rank candidate routes for a given segment and assign recommendation.
- * Routes violating hard constraints are eliminated from recommendation eligibility.
+ * Eliminates routes that violate a traveler's mandatory accessibility needs before scoring.
+ * Feasible routes strictly precede eliminated routes; a high-scoring non-compliant route cannot beat a compliant route.
  * @param {Array} candidateRoutes 
  * @param {Object} weights 
  * @param {Object} [traveler] Optional traveler profile to validate hard constraints
- * @returns {Array} Ranked candidate routes with scores and validity flags
+ * @returns {Array} Ranked candidate routes with scores, eligibility, and validity flags
  */
 export function rankSegmentRoutes(candidateRoutes = [], weights, traveler = null) {
   const constraints = traveler ? extractHardConstraints(traveler) : null;
 
-  // Step 1: Constraint Validation
+  // Step 1: Constraint Validation before scoring
   const routesWithConstraints = candidateRoutes.map(route => {
     if (!constraints) {
-      return { ...route, isFeasible: true, isEliminated: false, violations: [] };
+      const status = determineRouteAccessibilityStatus(route);
+      return {
+        ...route,
+        eligible: true,
+        isFeasible: true,
+        isEliminated: false,
+        accessibilityStatus: status,
+        rejectionReasons: [],
+        violations: []
+      };
     }
     const validation = validateRouteConstraints(route, constraints);
     return {
       ...route,
-      isFeasible: validation.valid,
-      isEliminated: !validation.valid,
+      eligible: validation.eligible,
+      isFeasible: validation.eligible,
+      isEliminated: !validation.eligible,
+      accessibilityStatus: validation.accessibilityStatus,
+      rejectionReasons: validation.rejectionReasons,
       violations: validation.violations
     };
   });
@@ -345,7 +490,7 @@ export function rankSegmentRoutes(candidateRoutes = [], weights, traveler = null
     };
   });
 
-  // Step 3: Ranking - Feasible routes always rank above eliminated routes
+  // Step 3: Strict Ranking - Feasible routes ALWAYS rank above eliminated routes
   scoredRoutes.sort((a, b) => {
     if (a.isFeasible !== b.isFeasible) {
       return a.isFeasible ? -1 : 1;
@@ -357,11 +502,17 @@ export function rankSegmentRoutes(candidateRoutes = [], weights, traveler = null
 
   // Step 4: Assign recommendation - Only the highest scoring FEASIBLE route is recommended
   const firstFeasibleIndex = scoredRoutes.findIndex(r => r.isFeasible);
+  const hasFeasibleRoute = firstFeasibleIndex !== -1;
 
   return scoredRoutes.map((route, index) => ({
     ...route,
-    isRecommended: route.isFeasible && index === firstFeasibleIndex,
-    rank: index + 1
+    isRecommended: hasFeasibleRoute && index === firstFeasibleIndex,
+    rank: index + 1,
+    hasFeasibleRoute,
+    limitationNotice: !hasFeasibleRoute ? {
+      code: "NO_COMPLIANT_ROUTE_AVAILABLE",
+      message: "No candidate route satisfies mandatory accessibility constraints for this corridor."
+    } : null
   }));
 }
 
@@ -402,8 +553,31 @@ export function generateWhyNotExplanation(candidateRoutes = [], weights, travele
   if (!candidateRoutes || candidateRoutes.length === 0) return { recommended: null, rejected: [] };
 
   const scoredRoutes = rankSegmentRoutes(candidateRoutes, weights, traveler);
-  const recommended = scoredRoutes.find(r => r.isRecommended) || scoredRoutes[0];
-  const rejected = scoredRoutes.filter(r => r.id !== recommended?.id);
+  const feasibleRoute = scoredRoutes.find(r => r.isFeasible);
+  const recommended = feasibleRoute || null;
+  const rejected = recommended ? scoredRoutes.filter(r => r.id !== recommended.id) : scoredRoutes;
+
+  if (!recommended) {
+    return {
+      recommended: null,
+      hasFeasibleRoute: false,
+      limitationNotice: {
+        code: "NO_COMPLIANT_ROUTE_AVAILABLE",
+        explanation: "No available candidate route satisfies the traveler's mandatory accessibility constraints. All evaluated routes violate hard safety or physical access requirements.",
+        violatedConstraints: traveler ? extractHardConstraints(traveler).activeConstraints : []
+      },
+      rejected: scoredRoutes.map(route => ({
+        routeId: route.id,
+        routeName: route.name,
+        score: route.score,
+        isEliminated: true,
+        accessibilityStatus: route.accessibilityStatus || "INACCESSIBLE",
+        rejectionReasons: route.rejectionReasons || [],
+        violations: route.violations || [],
+        reasons: route.violations?.length ? route.violations.map(v => `HARD CONSTRAINT VIOLATION: ${v}`) : ["Route violates mandatory accessibility constraints"]
+      }))
+    };
+  }
 
   const getStrengths = (route) => {
     let strengths = [];
@@ -467,6 +641,8 @@ export function generateWhyNotExplanation(candidateRoutes = [], weights, travele
       routeName: route.name,
       score: route.score,
       isEliminated: Boolean(route.isEliminated),
+      accessibilityStatus: route.accessibilityStatus,
+      rejectionReasons: route.rejectionReasons || [],
       violations: route.violations || [],
       reasons: getReasons(route, recommended)
     }))

@@ -246,7 +246,7 @@ app.get("/api/journey/default", optionalAuth, (req, res, next) => {
     const firstScoredSegment = segments.find(s => s.candidateRoutes?.length > 0);
     if (firstScoredSegment) {
       scoreBreakdown = generateScoreBreakdown(firstScoredSegment.candidateRoutes, weights);
-      whyNotData = generateWhyNotExplanation(firstScoredSegment.candidateRoutes, weights);
+      whyNotData = generateWhyNotExplanation(firstScoredSegment.candidateRoutes, weights, traveler);
     }
 
     const journeyHealth = calculateJourneyHealth({ segments });
@@ -353,7 +353,7 @@ app.post("/api/journey/event", optionalAuth, async (req, res, next) => {
     let whyNotData = null;
     if (eventResult.affectedSegment && eventResult.affectedSegment.candidateRoutes) {
       scoreBreakdown = generateScoreBreakdown(eventResult.affectedSegment.candidateRoutes, weights);
-      whyNotData = generateWhyNotExplanation(eventResult.affectedSegment.candidateRoutes, weights);
+      whyNotData = generateWhyNotExplanation(eventResult.affectedSegment.candidateRoutes, weights, journeyState.traveler || DEFAULT_TRAVELER);
     }
 
     // 6. Recalculate Journey Health

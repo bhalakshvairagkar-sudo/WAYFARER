@@ -386,11 +386,19 @@ export default function PlannerPageView() {
                       <span className="text-xs font-black px-2 py-0.5 rounded-md bg-white border border-slate-200 shadow-2xs">
                         Route {r.id}
                       </span>
-                      {r.stepFree && (
+                      {(r.isEliminated || r.eligible === false) ? (
+                        <span className="text-[10px] font-bold text-rose-700 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200">
+                          🚫 Ineligible
+                        </span>
+                      ) : r.stepFree || r.accessibilityStatus === 'VERIFIED' ? (
                         <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
                           ♿ Step-Free
                         </span>
-                      )}
+                      ) : r.accessibilityStatus === 'UNVERIFIED' ? (
+                        <span className="text-[9px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                          ⚠️ Unverified
+                        </span>
+                      ) : null}
                       {r.weatherEvaluation?.evaluated && (
                         <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${
                           r.weatherEvaluation.isConfirmedHazard

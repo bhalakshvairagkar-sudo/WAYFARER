@@ -341,7 +341,7 @@ export async function runWhatIfSimulation(journeyState = {}, whatIfParams = {}) 
     });
     return {
       ...seg,
-      candidateRoutes: rankSegmentRoutes(candidateRoutes, weights)
+      candidateRoutes: rankSegmentRoutes(candidateRoutes, weights, isolatedJourney.traveler || DEFAULT_TRAVELER)
     };
   });
 

@@ -48,6 +48,8 @@ export function segmentJourney(stops = [], traveler = {}) {
           accessibility: traveler.stairsAllowed === false ? 50 : 80,
           crowd: 65,
           convenience: 90,
+          hasStairs: traveler.stairsAllowed === false,
+          isStepFree: traveler.stairsAllowed !== false,
           accessibleFeatures: ["Standard urban sidewalk", "Occasional curbs"],
           coordinates: [
             [originStop.lat || 15.4989, originStop.lng || 73.8278],
@@ -68,6 +70,8 @@ export function segmentJourney(stops = [], traveler = {}) {
           accessibility: 95,
           crowd: 84,
           convenience: 85,
+          isStepFree: true,
+          stepFree: true,
           accessibleFeatures: ["Smooth continuous tactile pavement", "Gentle ramp gradients", "Assisted crossing"],
           coordinates: [
             [originStop.lat || 15.4989, originStop.lng || 73.8278],
@@ -88,6 +92,8 @@ export function segmentJourney(stops = [], traveler = {}) {
           accessibility: 88,
           crowd: 91,
           convenience: 80,
+          isStepFree: true,
+          stepFree: true,
           accessibleFeatures: ["Wide uncrowded pedestrian walkway", "Shaded rest areas"],
           coordinates: [
             [originStop.lat || 15.4989, originStop.lng || 73.8278],
@@ -101,9 +107,9 @@ export function segmentJourney(stops = [], traveler = {}) {
       ];
     }
 
-    // Rank candidate routes deterministically
-    const rankedRoutes = rankSegmentRoutes(candidateRoutes, weights);
-    const recommendedRoute = rankedRoutes.find(r => r.isRecommended) || rankedRoutes[0];
+    // Rank candidate routes deterministically with hard accessibility constraint validation
+    const rankedRoutes = rankSegmentRoutes(candidateRoutes, weights, traveler);
+    const recommendedRoute = rankedRoutes.find(r => r.isRecommended) || rankedRoutes.find(r => r.isFeasible) || null;
 
     segments.push({
       id: segmentId,
@@ -120,8 +126,13 @@ export function segmentJourney(stops = [], traveler = {}) {
       plannedArrival: destinationStop.arrivalTime || "11:00",
       status: i === 0 ? "ACTIVE" : "PLANNED",
       candidateRoutes: rankedRoutes,
-      recommendedRouteId: recommendedRoute.id,
-      journeyScore: recommendedRoute.score,
+      hasFeasibleRoute: Boolean(recommendedRoute),
+      recommendedRouteId: recommendedRoute?.id || null,
+      journeyScore: recommendedRoute?.score || 0,
+      limitationNotice: !recommendedRoute ? {
+        code: "NO_COMPLIANT_ROUTE_AVAILABLE",
+        message: "No candidate route satisfies mandatory accessibility constraints for this corridor."
+      } : null,
       downstreamImpact: null
     });
   }
