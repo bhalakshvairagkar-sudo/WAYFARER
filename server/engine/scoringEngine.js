@@ -291,12 +291,10 @@ export function determineRouteAccessibilityStatus(route) {
   const allText = `${routeName} ${routeTagline} ${features}`.trim();
 
   const hasStairsPattern = /\b(stairs|steps|stairway|staircase|flight of steps|steep steps|cobblestone stairs)\b/i;
-  const negatesStairsPattern = /\b(no steps|zero steps|step-free|step free|without stairs|no stairs)\b/i;
-  const isAffirmativeStepFree = route.isStepFree === true || route.stepFree === true ||
-    negatesStairsPattern.test(allText) ||
-    /step-free ramped access|100% step-free|continuous.*ramp|barrier-free/i.test(allText);
+  const negatesStairsPattern = /\b(no steps|zero steps|no stairs|zero stairs|without stairs|without steps|step-free|step free)\b/i;
+  const routeHasStairs = route.hasStairs === true || (hasStairsPattern.test(allText) && !negatesStairsPattern.test(allText));
 
-  if (hasStairsPattern.test(allText) && !negatesStairsPattern.test(allText)) {
+  if (routeHasStairs) {
     return "INACCESSIBLE";
   }
 
@@ -304,11 +302,16 @@ export function determineRouteAccessibilityStatus(route) {
   const hasScore = typeof route.accessibility === "number";
   const hasFeatures = Array.isArray(route.accessibleFeatures) && route.accessibleFeatures.length > 0;
   const hasStepFreeFlag = route.isStepFree !== undefined || route.stepFree !== undefined;
-  const hasAccessKeywords = hasStairsPattern.test(allText) || negatesStairsPattern.test(allText) || /ramp|elevator|lift|tactile|wheelchair|accessible|step-free/i.test(allText);
+  const hasAccessKeywords = hasStairsPattern.test(allText) || negatesStairsPattern.test(allText) || /ramp|elevator|lift|tactile|wheelchair|accessible|step-free|low-gradient|barrier-free|flat asphalt/i.test(allText);
 
   if (!hasScore && !hasFeatures && !hasStepFreeFlag && !hasAccessKeywords) {
     return "UNKNOWN";
   }
+
+  const isAffirmativeStepFree = route.isStepFree === true || route.stepFree === true ||
+    negatesStairsPattern.test(allText) ||
+    /step-free ramped access|100% step-free|continuous.*ramp|barrier-free|low-gradient|ramped|tactile/i.test(allText) ||
+    (!routeHasStairs && (route.accessibility >= 75) && (route.accessibleFeatures || []).some(f => /ramp|elevator|lift|paved|level|accessible|assisted|rest|asphalt/i.test(f)));
 
   if (isAffirmativeStepFree) {
     return "VERIFIED";
@@ -352,7 +355,7 @@ export function validateRouteConstraints(route, travelerOrConstraints = {}) {
 
   // 2. Stairs Check
   const hasStairsPattern = /\b(stairs|steps|stairway|staircase|flight of steps|steep steps|cobblestone stairs)\b/i;
-  const negatesStairsPattern = /\b(no steps|zero steps|step-free|step free|without stairs|no stairs)\b/i;
+  const negatesStairsPattern = /\b(no steps|zero steps|no stairs|zero stairs|without stairs|without steps|step-free|step free)\b/i;
   const routeHasStairs = route.hasStairs === true || (hasStairsPattern.test(allText) && !negatesStairsPattern.test(allText));
 
   if (constraints.stairsAllowed === false && routeHasStairs) {
@@ -364,7 +367,8 @@ export function validateRouteConstraints(route, travelerOrConstraints = {}) {
   // 3. Step-Free Requirement & Missing/Unverified Data Handling
   const isStepFree = route.isStepFree === true || route.stepFree === true ||
     negatesStairsPattern.test(allText) ||
-    /step-free ramped access|100% step-free|continuous.*ramp|barrier-free/i.test(allText);
+    /step-free ramped access|100% step-free|continuous.*ramp|barrier-free|low-gradient|ramped|tactile/i.test(allText) ||
+    (!routeHasStairs && (route.accessibility >= 75) && (route.accessibleFeatures || []).some(f => /ramp|elevator|lift|paved|level|accessible|assisted|rest|asphalt/i.test(f)));
 
   if (constraints.stepFreeRequired) {
     if (route.isStepFree === false || route.stepFree === false) {
@@ -518,27 +522,56 @@ export function rankSegmentRoutes(candidateRoutes = [], weights, traveler = null
 
 /**
  * Generate a detailed score breakdown for each route.
+ * Reconciles the displayed five-factor breakdown mathematically with the composite score formula.
  * @param {Array} candidateRoutes 
  * @param {Object} weights 
+ * @param {Object} [traveler] Optional traveler profile
  * @returns {Array} List of detailed breakdown objects
  */
-export function generateScoreBreakdown(candidateRoutes = [], weights) {
-  const scoredRoutes = rankSegmentRoutes(candidateRoutes, weights);
+export function generateScoreBreakdown(candidateRoutes = [], weights, traveler = null) {
+  const scoredRoutes = rankSegmentRoutes(candidateRoutes, weights, traveler);
 
   return scoredRoutes.map(route => {
+    const rawBreakdown = route.breakdown || {
+      safety: { value: 70, weight: weights.safety, weighted: 70 * weights.safety },
+      accessibility: { value: 70, weight: weights.accessibility, weighted: 70 * weights.accessibility },
+      crowd: { value: 70, weight: weights.crowd, weighted: 70 * weights.crowd },
+      convenience: { value: 70, weight: weights.convenience, weighted: 70 * weights.convenience },
+      cost: { value: 70, weight: weights.cost || 0, weighted: 70 * (weights.cost || 0) }
+    };
+
+    const factorItems = [
+      { factor: 'SAFETY', value: rawBreakdown.safety.value, weight: rawBreakdown.safety.weight, weighted: rawBreakdown.safety.weighted },
+      { factor: 'ACCESSIBILITY', value: rawBreakdown.accessibility.value, weight: rawBreakdown.accessibility.weight, weighted: rawBreakdown.accessibility.weighted },
+      { factor: 'CROWD', value: rawBreakdown.crowd.value, weight: rawBreakdown.crowd.weight, weighted: rawBreakdown.crowd.weighted },
+      { factor: 'CONVENIENCE', value: rawBreakdown.convenience.value, weight: rawBreakdown.convenience.weight, weighted: rawBreakdown.convenience.weighted },
+      { factor: 'COST', value: rawBreakdown.cost.value, weight: rawBreakdown.cost.weight, weighted: rawBreakdown.cost.weighted }
+    ];
+
+    const sumOfWeighted = Number(factorItems.reduce((acc, f) => acc + f.weighted, 0).toFixed(2));
+    const isReconciled = Math.abs(route.score - Math.round(sumOfWeighted)) <= 1;
+
     return {
       routeId: route.id,
       routeName: route.name,
       isRecommended: route.isRecommended,
+      isFeasible: route.isFeasible !== false,
+      isEliminated: Boolean(route.isEliminated),
+      accessibilityStatus: route.accessibilityStatus || 'VERIFIED',
+      rejectionReasons: route.rejectionReasons || [],
       score: route.score,
-      breakdown: [
-        { factor: 'SAFETY', value: route.breakdown.safety.value, weight: route.breakdown.safety.weight, weighted: route.breakdown.safety.weighted },
-        { factor: 'ACCESSIBILITY', value: route.breakdown.accessibility.value, weight: route.breakdown.accessibility.weight, weighted: route.breakdown.accessibility.weighted },
-        { factor: 'CROWD', value: route.breakdown.crowd.value, weight: route.breakdown.crowd.weight, weighted: route.breakdown.crowd.weighted },
-        { factor: 'CONVENIENCE', value: route.breakdown.convenience.value, weight: route.breakdown.convenience.weight, weighted: route.breakdown.convenience.weighted },
-        { factor: 'COST', value: route.breakdown.cost.value, weight: route.breakdown.cost.weight, weighted: route.breakdown.cost.weighted }
-      ],
-      total: route.rawScore
+      total: route.rawScore || Math.round(sumOfWeighted),
+      sumOfWeighted,
+      reconciles: isReconciled,
+      formula: "score = round(wSafety*Safety + wAccessibility*Accessibility + wCrowd*Crowd + wConvenience*Convenience + wCost*Cost)",
+      weights: {
+        safety: weights.safety,
+        accessibility: weights.accessibility,
+        crowd: weights.crowd,
+        convenience: weights.convenience,
+        cost: weights.cost || 0
+      },
+      breakdown: factorItems
     };
   });
 }
@@ -573,6 +606,7 @@ export function generateWhyNotExplanation(candidateRoutes = [], weights, travele
         isEliminated: true,
         accessibilityStatus: route.accessibilityStatus || "INACCESSIBLE",
         rejectionReasons: route.rejectionReasons || [],
+        reasonCodes: route.rejectionReasons && route.rejectionReasons.length > 0 ? route.rejectionReasons : ["HARD_CONSTRAINT_VIOLATION"],
         violations: route.violations || [],
         reasons: route.violations?.length ? route.violations.map(v => `HARD CONSTRAINT VIOLATION: ${v}`) : ["Route violates mandatory accessibility constraints"]
       }))
@@ -636,16 +670,33 @@ export function generateWhyNotExplanation(candidateRoutes = [], weights, travele
       score: recommended.score,
       strengths: getStrengths(recommended)
     },
-    rejected: rejected.map(route => ({
-      routeId: route.id,
-      routeName: route.name,
-      score: route.score,
-      isEliminated: Boolean(route.isEliminated),
-      accessibilityStatus: route.accessibilityStatus,
-      rejectionReasons: route.rejectionReasons || [],
-      violations: route.violations || [],
-      reasons: getReasons(route, recommended)
-    }))
+    rejected: rejected.map(route => {
+      const reasonCodes = [];
+      if (route.isEliminated || route.eligible === false) {
+        if (route.rejectionReasons && route.rejectionReasons.length > 0) {
+          reasonCodes.push(...route.rejectionReasons);
+        } else {
+          reasonCodes.push("HARD_CONSTRAINT_VIOLATION");
+        }
+      } else {
+        reasonCodes.push("LOWER_COMPOSITE_SCORE");
+        if ((route.accessibility || 70) < 80) reasonCodes.push("ACCESSIBILITY_BELOW_PREFERENCE");
+        if ((route.crowd || 70) < 70) reasonCodes.push("EXCEEDS_CROWD_TOLERANCE");
+      }
+
+      return {
+        routeId: route.id,
+        routeName: route.name,
+        score: route.score,
+        isEliminated: Boolean(route.isEliminated),
+        accessibilityStatus: route.accessibilityStatus || (route.isEliminated ? "INACCESSIBLE" : "VERIFIED"),
+        rejectionReasons: route.rejectionReasons || [],
+        reasonCodes,
+        violations: route.violations || [],
+        reasons: getReasons(route, recommended),
+        breakdown: route.breakdown || null
+      };
+    })
   };
 }
 

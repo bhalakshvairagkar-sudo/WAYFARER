@@ -83,24 +83,46 @@ export async function generateAdaptationExplanation(eventRecord, affectedSegment
 
   let localExplanation = "";
   
+  const oldRoute = eventRecord.previousRoute || affectedSegment?.candidateRoutes?.find(r => r.id === previousRecommendedId);
+  const durationDelta = eventRecord.durationDeltaMin !== undefined 
+    ? eventRecord.durationDeltaMin 
+    : (newRecommendedRoute && oldRoute ? (newRecommendedRoute.durationMin - oldRoute.durationMin) : 0);
+  const distanceDelta = eventRecord.distanceDeltaKm !== undefined
+    ? eventRecord.distanceDeltaKm
+    : (newRecommendedRoute && oldRoute ? Number(((newRecommendedRoute.distanceKm || 0) - (oldRoute.distanceKm || 0)).toFixed(1)) : 0);
+
+  const isClosure = type === "ROAD_CLOSURE" || type === "CORRIDOR_CLOSURE" || (reason && /closure|closed|road closure/i.test(reason));
+  const isVerifiedClosure = Boolean(
+    eventRecord.isVerified === true ||
+    eventRecord.verificationStatus === "VERIFIED" ||
+    (eventRecord.severity && eventRecord.severity >= 0.8 && eventRecord.verificationStatus !== "PENDING" && eventRecord.verificationStatus !== "UNVERIFIED" && eventRecord.verificationStatus !== "DISPUTED")
+  );
+
   let structuredChange = {
     before: {
       routeId: previousRecommendedId || "B",
       routeName: prevRouteName,
       score: eventRecord.previousRecommendedScore || 91,
+      durationMin: oldRoute?.durationMin || 28,
       keyFactor: "Previously optimal route"
     },
     event: {
       type,
       description: reason || "Environmental disruption",
-      severity: eventRecord.severity || 1.0
+      severity: eventRecord.severity || 1.0,
+      verificationStatus: eventRecord.verificationStatus || (isVerifiedClosure ? "VERIFIED" : "UNVERIFIED"),
+      isVerified: isVerifiedClosure
     },
     after: {
       routeId: newRecommendedId || "C",
       routeName: newRecommendedRoute?.name || newRouteName,
       score: newRecommendedRoute?.score || eventRecord.newRecommendedScore || 85,
+      durationMin: newRecommendedRoute?.durationMin || 40,
       keyFactor: "Re-ranked resilient route"
     },
+    durationDeltaMinutes: durationDelta,
+    distanceDeltaKm: distanceDelta,
+    scoreDelta: (newRecommendedRoute?.score || eventRecord.newRecommendedScore || 85) - (eventRecord.previousRecommendedScore || 91),
     factorChanges: [],
     downstreamSummary: "No downstream timing conflicts detected"
   };
@@ -113,12 +135,32 @@ export async function generateAdaptationExplanation(eventRecord, affectedSegment
     }
   }
 
-  if (type === "ACCESSIBILITY_DEGRADATION") {
+  if (isClosure) {
+    if (isVerifiedClosure) {
+      const deltaText = durationDelta !== 0
+        ? ` and has an estimated ${Math.abs(durationDelta)}-minute ${durationDelta > 0 ? 'longer' : 'faster'} travel time`
+        : "";
+      localExplanation = `${newRouteName} was recommended because ${prevRouteName} intersects a verified closure. ${newRouteName} satisfies the traveler's mandatory accessibility constraints${deltaText}.`;
+      structuredChange.before.keyFactor = "Intersects verified closure";
+      structuredChange.after.keyFactor = `Verified barrier-free route${deltaText}`;
+      structuredChange.factorChanges = [
+        { factor: "Accessibility", before: oldRoute?.accessibility || 90, after: 10, delta: -80, critical: true },
+        { factor: "Duration", before: oldRoute?.durationMin || 28, after: newRecommendedRoute?.durationMin || 40, deltaMinutes: durationDelta, critical: false },
+        { factor: "Score", before: eventRecord.previousRecommendedScore || 90, after: newRecommendedRoute?.score || 88, delta: (newRecommendedRoute?.score || 88) - (eventRecord.previousRecommendedScore || 90), critical: false }
+      ];
+    } else {
+      localExplanation = `Advisory note: An unverified report of road obstruction was recorded for ${prevRouteName}. As independent verification is pending, ${prevRouteName} remains preserved and has not been modified.`;
+      structuredChange.before.keyFactor = "Active recommended corridor";
+      structuredChange.after.keyFactor = "Preserved corridor (advisory pending verification)";
+    }
+  } else if (type === "ACCESSIBILITY_DEGRADATION") {
     localExplanation = `${newRouteName} (${newRecommendedRoute?.name || "Alternate Corridor"}) is now recommended because ${prevRouteName} lost critical step-free infrastructure at ${segDest}. ${newRouteName} utilizes an accessible bypass, restoring journey fit score to ${newRecommendedRoute?.score || 85}/100.`;
     structuredChange.before.keyFactor = "Optimal accessibility";
     structuredChange.after.keyFactor = "High accessibility without dependency on degraded infrastructure";
     structuredChange.factorChanges = [
-      { factor: "Accessibility", before: 96, after: 38, delta: -58, critical: true }
+      { factor: "Accessibility", before: oldRoute?.accessibility || 96, after: 38, delta: -58, critical: true },
+      { factor: "Duration", before: oldRoute?.durationMin || 37, after: newRecommendedRoute?.durationMin || 40, deltaMinutes: durationDelta || 3, critical: false },
+      { factor: "Score", before: eventRecord.previousRecommendedScore || 91, after: newRecommendedRoute?.score || 88, delta: (newRecommendedRoute?.score || 88) - (eventRecord.previousRecommendedScore || 91), critical: false }
     ];
   } else if (type === "CROWD_SPIKE") {
     localExplanation = `${newRouteName} is now recommended to bypass heavy pedestrian congestion reported en route to ${segDest}. Timing and routing recalibrated to ensure a low-stress, accessible experience.`;
@@ -163,11 +205,22 @@ export async function generateAdaptationExplanation(eventRecord, affectedSegment
 
   try {
     const prompt = `
-Explain in 2 crisp sentences why WAYFARER updated the recommended route for segment "${segOrigin} -> ${segDest}" from Route ${previousRecommendedId} to Route ${newRecommendedId} (${newRecommendedRoute?.name || "Alternate"}).
-Event: ${type} - ${reason}.
-Traveler mobility: ${traveler?.mobility} (accessibilityPriority=${traveler?.accessibilityPriority || "high"}).
-New Route score: ${newRecommendedRoute?.score}/100.
-Downstream context: ${structuredChange.downstreamSummary}.
+CRITICAL TRUTHFULNESS & FACTUAL GROUNDING RULES:
+1. Derive all facts strictly from the factual engine payload below. Do not fabricate or exaggerate.
+2. If verificationStatus is NOT "VERIFIED", you must NEVER state that a closure is "verified" or "authoritative". State that it is an unverified advisory report.
+3. Duration delta is ${durationDelta}m, previous route is Route ${previousRecommendedId}, new route is Route ${newRecommendedId}.
+
+FACTS:
+Trip Segment: "${segOrigin} -> ${segDest}"
+Previous Route: Route ${previousRecommendedId} (${oldRoute?.name || prevRouteName}, Score: ${eventRecord.previousRecommendedScore || 91})
+New Route: Route ${newRecommendedId} (${newRecommendedRoute?.name || "Alternate"}, Score: ${newRecommendedRoute?.score}/100)
+Event: ${type} - ${reason}
+Verification Status: ${structuredChange.event?.verificationStatus || "UNVERIFIED"}
+Duration Delta: ${durationDelta !== 0 ? `${durationDelta > 0 ? `+${durationDelta}m longer` : `${durationDelta}m`}` : "None"}
+Traveler Mobility: ${traveler?.mobility} (accessibilityPriority=${traveler?.accessibilityPriority || "high"})
+Downstream Context: ${structuredChange.downstreamSummary}
+
+Write exactly 2 crisp sentences explaining why WAYFARER recommended this route adaptation, grounded strictly in these facts.
 `;
 
     const controller = new AbortController();

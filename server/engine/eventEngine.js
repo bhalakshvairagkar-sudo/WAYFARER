@@ -281,8 +281,59 @@ export function applyJourneyEvent(currentJourneyState, eventPayload) {
     }
   }
 
+  // ─── ROAD_CLOSURE / CORRIDOR_CLOSURE ───
+  else if (type === "ROAD_CLOSURE" || type === "CORRIDOR_CLOSURE") {
+    if (!targetSegment) throw new Error(`Segment "${segmentId}" not found.`);
+
+    const prevRec = targetSegment.candidateRoutes.find(r => r.isRecommended) || targetSegment.candidateRoutes[0];
+    previousRecommendedId = prevRec.id;
+    previousRecommendedScore = prevRec.score;
+
+    const targetRouteToClose = routeId || previousRecommendedId;
+
+    targetSegment.candidateRoutes = targetSegment.candidateRoutes.map(route => {
+      if (route.id !== targetRouteToClose) return route;
+
+      return {
+        ...route,
+        isClosed: true,
+        isStepFree: false,
+        stepFree: false,
+        accessibilityStatus: "INACCESSIBLE",
+        accessibility: 10,
+        activeEvent: {
+          type,
+          reason,
+          note: `Corridor closure: Route ${route.id} is blocked by confirmed obstruction.`,
+          isVerified: Boolean(eventPayload.isVerified || eventPayload.verificationStatus === "VERIFIED"),
+          timestamp: new Date().toISOString()
+        }
+      };
+    });
+
+    const reranked = rankSegmentRoutes(targetSegment.candidateRoutes, weights, traveler);
+    targetSegment.candidateRoutes = reranked;
+    const newRec = reranked.find(r => r.isRecommended) || reranked.find(r => r.isFeasible) || reranked[0];
+    newRecommendedId = newRec?.id || null;
+    newRecommendedScore = newRec?.score || 0;
+    targetSegment.recommendedRouteId = newRecommendedId;
+    targetSegment.journeyScore = newRecommendedScore;
+  }
+
   routeChanged = previousRecommendedId !== newRecommendedId;
   scoreChanged = previousRecommendedScore !== newRecommendedScore;
+
+  const oldRoute = targetSegment?.candidateRoutes?.find(r => r.id === previousRecommendedId);
+  const newRoute = targetSegment?.candidateRoutes?.find(r => r.id === newRecommendedId);
+  const durationDeltaMin = newRoute && oldRoute ? (newRoute.durationMin - oldRoute.durationMin) : 0;
+  const distanceDeltaKm = newRoute && oldRoute ? Number((newRoute.distanceKm - oldRoute.distanceKm).toFixed(1)) : 0;
+  const scoreDelta = (newRecommendedScore || 0) - (previousRecommendedScore || 0);
+
+  const isVerified = Boolean(
+    eventPayload.isVerified === true ||
+    eventPayload.verificationStatus === "VERIFIED" ||
+    (eventPayload.severity && eventPayload.severity >= 0.8 && eventPayload.verificationStatus !== "PENDING" && eventPayload.verificationStatus !== "UNVERIFIED" && eventPayload.verificationStatus !== "DISPUTED")
+  );
 
   const now = new Date();
   const timeString = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
@@ -300,6 +351,27 @@ export function applyJourneyEvent(currentJourneyState, eventPayload) {
     newRecommendedScore,
     routeChanged,
     scoreChanged,
+    durationDeltaMin,
+    distanceDeltaKm,
+    scoreDelta,
+    verificationStatus: isVerified ? "VERIFIED" : (eventPayload.verificationStatus || "UNVERIFIED"),
+    isVerified,
+    previousRoute: oldRoute ? {
+      id: oldRoute.id,
+      name: oldRoute.name,
+      score: oldRoute.score,
+      durationMin: oldRoute.durationMin,
+      distanceKm: oldRoute.distanceKm,
+      accessibility: oldRoute.accessibility
+    } : null,
+    newRoute: newRoute ? {
+      id: newRoute.id,
+      name: newRoute.name,
+      score: newRoute.score,
+      durationMin: newRoute.durationMin,
+      distanceKm: newRoute.distanceKm,
+      accessibility: newRoute.accessibility
+    } : null,
     ...extraEventData
   };
 
