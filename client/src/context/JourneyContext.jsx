@@ -3,7 +3,10 @@ import {
   checkHealth,
   fetchDefaultJourney,
   parseJourneyPrompt,
-  postJourneyEvent
+  postJourneyEvent,
+  saveJourney,
+  fetchJourneyHistory,
+  fetchProviderHealth
 } from '../services/api.js';
 import { calculateRoutes } from '../services/routeService.js';
 import { isGoogleMapsConfigured } from '../services/googleMapsLoader.js';
@@ -25,6 +28,7 @@ export function JourneyProvider({ children }) {
 
   // Recovery adaptation state after an event occurs
   const [recoveryState, setRecoveryState] = useState(null);
+  const [providerHealth, setProviderHealth] = useState(null);
 
   // Sync user profile & mobility requirements into journeyState whenever authenticated user changes
   useEffect(() => {
@@ -80,6 +84,11 @@ export function JourneyProvider({ children }) {
       try {
         const health = await checkHealth();
         setAiStatus(health);
+
+        const provData = await fetchProviderHealth();
+        if (provData && provData.providers) {
+          setProviderHealth(provData);
+        }
 
         const defaultData = await fetchDefaultJourney();
         if (defaultData && defaultData.segments) {
@@ -396,6 +405,36 @@ export function JourneyProvider({ children }) {
     }
   };
 
+  // 7. Save current active journey to persistent storage (MongoDB)
+  const saveCurrentJourney = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const payload = {
+        trip: journeyState.trip,
+        traveler: journeyState.traveler,
+        stops: journeyState.stops,
+        segments: journeyState.segments,
+        overallScore: journeyState.overallScore,
+        fitLevel: journeyState.fitLevel,
+        journeyHealth: journeyState.journeyHealth,
+        eventHistory: journeyState.eventHistory
+      };
+      const res = await saveJourney(payload);
+      return res;
+    } catch (err) {
+      console.warn('[JourneyContext] Persistent save failed, last valid state preserved:', err.message);
+      setError({
+        message: err.message || 'Failed to save journey to database.',
+        code: err.code || 'DB_UNAVAILABLE',
+        recoverable: true
+      });
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const value = {
     journeyState,
     setJourneyState,
@@ -404,12 +443,14 @@ export function JourneyProvider({ children }) {
     isLoading,
     error,
     aiStatus,
+    providerHealth,
     routingMode,
     setRoutingMode,
     recoveryState,
     updateTravelerProfile,
     parsePrompt,
     planNewJourney,
+    saveCurrentJourney,
     selectRouteForSegment,
     triggerEvent,
     acceptRecoveryRoute,

@@ -292,6 +292,9 @@ User form fields (if any):
 ${JSON.stringify(formData, null, 2)}
 `;
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3500);
+
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`, {
       method: "POST",
       headers: {
@@ -312,8 +315,10 @@ ${JSON.stringify(formData, null, 2)}
           temperature: 0.1,
           responseMimeType: "application/json"
         }
-      })
+      }),
+      signal: controller.signal
     });
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
       console.warn(`[Gemini API] Request failed with status ${response.status}. Using deterministic fallback.`);

@@ -29,8 +29,19 @@ const UserSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: ['USER', 'ADMIN', 'EMERGENCY_CONTACT', 'TRAVEL_PARTNER'],
+      enum: ['USER', 'CONTROLLER', 'ADMIN', 'EMERGENCY_CONTACT', 'TRAVEL_PARTNER'],
       default: 'USER'
+    },
+    organization: {
+      type: String,
+      trim: true,
+      maxLength: 120,
+      default: ''
+    },
+    phone: {
+      type: String,
+      trim: true,
+      default: ''
     },
     privacySettings: {
       locationPrecision: {

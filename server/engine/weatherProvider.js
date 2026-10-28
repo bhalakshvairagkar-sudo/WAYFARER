@@ -96,9 +96,14 @@ export function normalizeWeatherData(raw = {}, provenance = "LIVE") {
   }
 
   return {
-    provenance, // LIVE | FORECAST | SIMULATED | UNAVAILABLE
+    provenance, // LIVE | FORECAST | SIMULATED | DEGRADED_FALLBACK | UNAVAILABLE
+    degraded: provenance === "DEGRADED_FALLBACK" || provenance === "UNAVAILABLE",
+    isSimulation: provenance === "SIMULATED",
+    dataFreshnessTimestamp: current.time || new Date().toISOString(),
     source: provenance === "SIMULATED" 
       ? "WAYFARER Digital Twin Atmospheric Model" 
+      : provenance === "DEGRADED_FALLBACK"
+      ? "Calibrated Offline Atmospheric Model"
       : "Open-Meteo Global Meteorological Engine",
     timestamp: current.time || new Date().toISOString(),
     temperature: Math.round(temperature * 10) / 10,
@@ -182,7 +187,7 @@ export async function fetchLiveWeather({ lat = 18.9220, lng = 72.8347 } = {}, al
 
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 4000);
+    const timeoutId = setTimeout(() => controller.abort(), 3500);
 
     const response = await fetch(url, { signal: controller.signal });
     clearTimeout(timeoutId);
@@ -194,20 +199,23 @@ export async function fetchLiveWeather({ lat = 18.9220, lng = 72.8347 } = {}, al
     const rawData = await response.json();
     return normalizeWeatherData(rawData, "LIVE");
   } catch (err) {
-    securityLogger.warn(`[WEATHER_PROVIDER] Live fetch failed for (${lat}, ${lng}): ${err.message}. Using high-fidelity model fallback.`);
+    securityLogger.warn(`[WEATHER_PROVIDER] Live fetch failed for (${lat}, ${lng}): ${err.message}. Using calibrated fallback.`);
     
     if (!allowFallback) {
-      return normalizeWeatherData({
+      const unavail = normalizeWeatherData({
         time: new Date().toISOString(),
         temperature_2m: 29,
         relative_humidity_2m: 75,
         precipitation: 0,
         weather_code: 1
       }, "UNAVAILABLE");
+      unavail.degraded = true;
+      unavail.degradationReason = err.message;
+      return unavail;
     }
 
     // High fidelity realistic baseline for Mumbai/India (29°C, Partly Cloudy, 0.4mm breeze)
-    return normalizeWeatherData({
+    const fallbackData = normalizeWeatherData({
       time: new Date().toISOString(),
       temperature_2m: 29.2,
       apparent_temperature: 32.1,
@@ -220,6 +228,9 @@ export async function fetchLiveWeather({ lat = 18.9220, lng = 72.8347 } = {}, al
       visibility: 9000,
       uv_index: 6.4,
       surface_pressure: 1011
-    }, "LIVE");
+    }, "DEGRADED_FALLBACK");
+    fallbackData.degraded = true;
+    fallbackData.degradationReason = `External meteorological provider unreachable or timed out: ${err.message}`;
+    return fallbackData;
   }
 }

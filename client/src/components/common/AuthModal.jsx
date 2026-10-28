@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Lock,
   Mail,
@@ -8,18 +9,26 @@ import {
   AlertCircle,
   Loader2,
   KeyRound,
-  ArrowRight
+  ArrowRight,
+  Radio,
+  Building,
+  Phone
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.jsx';
 
 export default function AuthModal({ isOpen, onClose }) {
+  const navigate = useNavigate();
   const { login, register, authError, setAuthError } = useAuth();
   const [tab, setTab] = useState('login'); // 'login' | 'register'
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
-  const [role, setRole] = useState('USER');
+  const [role, setRole] = useState('USER'); // 'USER' | 'CONTROLLER'
+  const [organization, setOrganization] = useState('');
+  const [phone, setPhone] = useState('');
+
+  // Traveler Needs & Constraints
   const [mobility, setMobility] = useState('standard');
   const [stairsAllowed, setStairsAllowed] = useState(true);
   const [maxWalkingDistanceMeters, setMaxWalkingDistanceMeters] = useState(1000);
@@ -39,6 +48,10 @@ export default function AuthModal({ isOpen, onClose }) {
       setStairsAllowed(false);
       setMaxWalkingDistanceMeters(400);
       setPreferShade(true);
+    } else if (newMobility === 'visually_impaired') {
+      setStairsAllowed(true);
+      setMaxWalkingDistanceMeters(800);
+      setSafetyPriority('high');
     } else if (newMobility === 'standard') {
       setStairsAllowed(true);
       setMaxWalkingDistanceMeters(1200);
@@ -51,26 +64,39 @@ export default function AuthModal({ isOpen, onClose }) {
     setAuthError(null);
 
     try {
+      let res;
       if (tab === 'login') {
-        await login(email, password);
+        res = await login(email, password);
       } else {
-        await register({
+        res = await register({
           email,
           password,
           name,
           role,
+          organization: role === 'CONTROLLER' ? (organization || 'Transit Control Operations') : '',
+          phone,
           travelerProfile: {
             mobility,
-            stairsAllowed,
+            stairsAllowed: role === 'CONTROLLER' ? true : stairsAllowed,
             needsElevator: !stairsAllowed || mobility === 'wheelchair',
             maxWalkingDistanceMeters: Number(maxWalkingDistanceMeters),
             safetyPriority,
             crowdTolerance,
-            preferShade
+            preferShade,
+            specialAssistance: mobility === 'wheelchair' ? 'wheelchair_ramp_required' : mobility === 'visually_impaired' ? 'audio_tactile_aid' : 'none'
           }
         });
       }
+
       onClose();
+
+      // Separate Interface Routing: Controllers go to Command Center, Travelers go to Dashboard
+      const resolvedRole = res?.user?.role || role;
+      if (resolvedRole === 'CONTROLLER' || resolvedRole === 'ADMIN') {
+        navigate('/controller');
+      } else {
+        navigate('/');
+      }
     } catch (err) {
       // Error handled in AuthContext
     } finally {
@@ -191,21 +217,83 @@ export default function AuthModal({ isOpen, onClose }) {
           </div>
 
           {tab === 'register' && (
-            <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-700">Role / Profile Type</label>
-              <select
-                value={role}
-                onChange={(e) => setRole(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-900 focus:outline-hidden focus:border-brand-500 bg-white"
-              >
-                <option value="USER">Traveler (Standard)</option>
-                <option value="EMERGENCY_CONTACT">Emergency Contact</option>
-                <option value="TRAVEL_PARTNER">Travel Companion</option>
-              </select>
+            <div className="space-y-3">
+              <label className="text-xs font-bold text-slate-700 block">Account Role / Purpose</label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setRole('USER')}
+                  className={`p-3 rounded-2xl border text-left transition flex items-center gap-3 ${
+                    role === 'USER'
+                      ? 'border-brand-500 bg-brand-50/50 ring-2 ring-brand-500/20 text-brand-900'
+                      : 'border-slate-200 hover:border-slate-300 bg-white text-slate-700'
+                  }`}
+                >
+                  <span className="text-2xl">🚶</span>
+                  <div>
+                    <span className="text-xs font-extrabold block">Traveler</span>
+                    <span className="text-[10px] text-slate-500 leading-tight">Personalized adaptive journeys</span>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setRole('CONTROLLER')}
+                  className={`p-3 rounded-2xl border text-left transition flex items-center gap-3 ${
+                    role === 'CONTROLLER'
+                      ? 'border-rose-500 bg-rose-50/50 ring-2 ring-rose-500/20 text-rose-950'
+                      : 'border-slate-200 hover:border-slate-300 bg-white text-slate-700'
+                  }`}
+                >
+                  <span className="text-2xl">🚨</span>
+                  <div>
+                    <span className="text-xs font-extrabold block">Transit Controller</span>
+                    <span className="text-[10px] text-slate-500 leading-tight">Fleet, TrustShield & dispatch</span>
+                  </div>
+                </button>
+              </div>
+
+              {role === 'CONTROLLER' && (
+                <div className="space-y-3 p-3.5 bg-rose-50/60 rounded-2xl border border-rose-200 animate-in fade-in">
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-rose-950 flex items-center gap-1.5">
+                      <Building className="w-3.5 h-3.5 text-rose-600" />
+                      <span>Transit Authority / Agency</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={organization}
+                      onChange={(e) => setOrganization(e.target.value)}
+                      placeholder="e.g. Mumbai Municipal Transit Operations"
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-rose-200 text-xs text-slate-900 bg-white focus:outline-hidden focus:border-rose-500"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-rose-950 flex items-center gap-1.5">
+                      <Phone className="w-3.5 h-3.5 text-rose-600" />
+                      <span>Dispatch Phone / Hotline</span>
+                    </label>
+                    <input
+                      type="tel"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder="+91 98765 43210"
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-rose-200 text-xs text-slate-900 bg-white focus:outline-hidden focus:border-rose-500"
+                    />
+                  </div>
+
+                  <div className="text-[10px] text-rose-700 font-medium leading-relaxed bg-white/70 p-2.5 rounded-xl border border-rose-100 flex items-start gap-1.5">
+                    <Radio className="w-3.5 h-3.5 text-rose-600 shrink-0 mt-0.5" />
+                    <span>Controller credentials grant access to network corridor surveillance, TrustShield quarantine moderation, weather digital twin stress testing, and emergency broadcast dispatching.</span>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
-          {tab === 'register' && (
+          {tab === 'register' && role === 'USER' && (
             <div className="space-y-3 pt-2 border-t border-slate-100">
               <div>
                 <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5 mb-1.5">

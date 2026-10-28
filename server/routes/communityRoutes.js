@@ -525,4 +525,48 @@ router.post("/simulate", optionalAuth, (req, res) => {
   }
 });
 
+/**
+ * POST /api/community/broadcast
+ * Controller Emergency Broadcast Dispatcher
+ */
+router.post("/broadcast", optionalAuth, (req, res) => {
+  try {
+    const { corridorId = "S3", title, message, severity = 0.9, eventType = "ACCESSIBILITY_ISSUE" } = req.body;
+    const operatorName = req.user?.name || "Transit Controller";
+    const agencyName = req.user?.organization || "Command Center";
+
+    const broadcastReport = {
+      resourceId: corridorId,
+      eventType: eventType || "ACCESSIBILITY_ISSUE",
+      severity: Number(severity),
+      description: `[OFFICIAL CONTROLLER BROADCAST - ${agencyName}] ${title ? title + ': ' : ''}${message || 'Corridor alert in effect.'}`,
+      reporterId: req.user?.id || `ctrl-${Date.now()}`,
+      reporterName: `${operatorName} (${agencyName})`,
+      reporterReputation: 1.0,
+      reporterLocation: { lat: 18.9290, lng: 72.8250 },
+      mediaEvidence: { hasPhoto: true },
+      ipAddress: req.ip || "127.0.0.1",
+      timestamp: new Date().toISOString()
+    };
+
+    const result = processCommunityReport(broadcastReport);
+    if (result.cluster) {
+      actionIncidentCluster(result.cluster.id, "CONFIRM_ADAPT", `Official Authority Broadcast by ${operatorName}`);
+      result.cluster = evidenceStore.getCluster(result.cluster.id);
+      result.decision = "ADAPT";
+    }
+
+    securityLogger.info(`[CONTROLLER_BROADCAST] ${title || 'Broadcast'} dispatched to corridor ${corridorId} by ${operatorName}`);
+
+    res.json({
+      success: true,
+      message: "Emergency broadcast dispatched to all travelers on corridor.",
+      broadcast: broadcastReport,
+      incident: result.cluster
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 export default router;

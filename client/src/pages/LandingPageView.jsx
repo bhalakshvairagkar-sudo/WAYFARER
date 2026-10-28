@@ -1,11 +1,17 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Search, Mic, Compass, Navigation, History, ShieldCheck, MapPin } from 'lucide-react';
+import { Search, Mic, Compass, Navigation, History, ShieldCheck, MapPin, Radio, ArrowRight, ShieldAlert } from 'lucide-react';
 import { useJourney } from '../context/JourneyContext.jsx';
+import { useAuth } from '../context/AuthContext.jsx';
+import PersonalizedNeedBanner from '../components/dashboard/PersonalizedNeedBanner.jsx';
 
 export default function LandingPageView() {
   const { journeyState } = useJourney();
+  const { user, isAuthenticated } = useAuth();
   const navigate = useNavigate();
+
+  const travelerName = user?.name || journeyState?.traveler?.name || 'Traveler';
+  const isController = user?.role === 'CONTROLLER' || user?.role === 'ADMIN';
 
   // If there's an active route, we can show it in 'Next Journey'
   const activeSegment = journeyState?.segments?.find((s) => s.status === 'ACTIVE') || journeyState?.segments?.[0];
@@ -17,15 +23,47 @@ export default function LandingPageView() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 space-y-7 animate-in fade-in slide-in-from-bottom-4 duration-500">
       
+      {/* Controller Notice Card (Visible when signed in as Controller) */}
+      {isController && (
+        <div className="p-4 sm:p-5 rounded-3xl bg-rose-950 text-white border border-rose-800 shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-rose-600/30 border border-rose-500/40 flex items-center justify-center text-rose-300 shrink-0">
+              <Radio className="w-5 h-5 animate-pulse" />
+            </div>
+            <div>
+              <span className="text-[10px] font-black uppercase tracking-wider text-rose-300">
+                TRANSIT CONTROLLER SESSION ACTIVE
+              </span>
+              <h2 className="text-base font-black text-white">
+                {user?.organization || 'Transit Control Operations Center'}
+              </h2>
+              <p className="text-xs text-rose-200/80 font-medium">
+                Authoritative corridor control, TrustShield quarantine moderation, and emergency dispatch.
+              </p>
+            </div>
+          </div>
+          <Link
+            to="/controller"
+            className="px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-extrabold text-xs transition flex items-center justify-center gap-2 shrink-0 shadow-md shadow-rose-900/40"
+          >
+            <span>Open Command Center</span>
+            <ArrowRight className="w-4 h-4" />
+          </Link>
+        </div>
+      )}
+
       {/* Greeting */}
       <div className="space-y-1">
         <h1 className="text-3xl font-black text-slate-900 tracking-tight">
-          Good morning, {journeyState?.traveler?.name || 'Traveler'} <span className="text-2xl animate-wave inline-block origin-[70%_70%]">👋</span>
+          Good morning, {travelerName} <span className="text-2xl animate-wave inline-block origin-[70%_70%]">👋</span>
         </h1>
         <p className="text-slate-500 font-medium">Where are you going?</p>
       </div>
+
+      {/* Adaptive Personalized Needs Banner (Auto-adapts to user's mobility & constraints) */}
+      <PersonalizedNeedBanner />
 
       {/* Global Search Bar */}
       <div className="relative group">

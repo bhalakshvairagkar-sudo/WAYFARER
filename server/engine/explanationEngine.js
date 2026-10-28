@@ -37,6 +37,9 @@ Segments count: ${segments.length}.
 Write a concise 2-sentence explanation of why this journey plan is optimized for this specific traveler's safety, accessibility, and mobility needs.
 `;
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3500);
+
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`, {
       method: "POST",
       headers: {
@@ -46,8 +49,10 @@ Write a concise 2-sentence explanation of why this journey plan is optimized for
       body: JSON.stringify({
         contents: [{ role: "user", parts: [{ text: prompt }] }],
         generationConfig: { temperature: 0.2, maxOutputTokens: 150 }
-      })
+      }),
+      signal: controller.signal
     });
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
       return { explanation: fallbackText, source: "LOCAL_EXPLANATION", badge: "🟡 Deterministic Explanation" };
@@ -165,6 +170,9 @@ New Route score: ${newRecommendedRoute?.score}/100.
 Downstream context: ${structuredChange.downstreamSummary}.
 `;
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3500);
+
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`, {
       method: "POST",
       headers: {
@@ -174,8 +182,10 @@ Downstream context: ${structuredChange.downstreamSummary}.
       body: JSON.stringify({
         contents: [{ role: "user", parts: [{ text: prompt }] }],
         generationConfig: { temperature: 0.2, maxOutputTokens: 150 }
-      })
+      }),
+      signal: controller.signal
     });
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
       return { explanation: localExplanation, source: "LOCAL_EXPLANATION", badge: "🟡 Local Explanation", structuredChange };
@@ -231,6 +241,9 @@ ${comparison ? `Scenario: Simulated rainfall ${comparison.params?.rainfallMm}mm/
 In 2 crisp, authoritative sentences, summarize the environmental impact on this traveler and how WAYFARER's Digital Twin protects their journey.
 `;
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3500);
+
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`, {
       method: "POST",
       headers: {
@@ -240,8 +253,10 @@ In 2 crisp, authoritative sentences, summarize the environmental impact on this 
       body: JSON.stringify({
         contents: [{ role: "user", parts: [{ text: prompt }] }],
         generationConfig: { temperature: 0.2, maxOutputTokens: 160 }
-      })
+      }),
+      signal: controller.signal
     });
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
       return { explanation: localExplanation, source: "LOCAL_EXPLANATION", badge: "🟡 Digital Twin Copilot" };

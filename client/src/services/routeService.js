@@ -320,13 +320,13 @@ export async function calculateRoutes({ origin, destination, waypoints = [], tra
   const directDistKm = calculateHaversine(originLat, originLng, destLat, destLng);
   const baseMinutes = Math.max(10, Math.round(directDistKm * 3.5));
 
-  // If Google Maps is configured, try Google DirectionsService
+  // If Google Maps is configured, try Google DirectionsService with timeout protection
   if (isGoogleMapsConfigured()) {
     try {
       const maps = await loadGoogleMapsScript();
       if (maps && maps.DirectionsService) {
         const directionsService = new maps.DirectionsService();
-        const googleResult = await new Promise((resolve, reject) => {
+        const googlePromise = new Promise((resolve, reject) => {
           directionsService.route(
             {
               origin: { lat: originLat, lng: originLng },
@@ -357,12 +357,18 @@ export async function calculateRoutes({ origin, destination, waypoints = [], tra
           );
         });
 
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Google Directions request timed out')), 4000)
+        );
+
+        const googleResult = await Promise.race([googlePromise, timeoutPromise]);
+
         if (googleResult && googleResult.length > 0) {
           return normalizeGoogleRoutes(googleResult, origin, destination, travelerProfile);
         }
       }
     } catch (err) {
-      console.warn('[RouteService] Google Directions failed, trying OSRM:', err.message);
+      console.warn('[RouteService] Google Directions failed or timed out, trying OSRM:', err.message);
     }
   }
 
@@ -373,7 +379,12 @@ export async function calculateRoutes({ origin, destination, waypoints = [], tra
     const osrmProfile = directDistKm > 20 ? 'driving' : 'foot';
     // Note: OSRM uses lon,lat format
     const osrmUrl = `https://router.project-osrm.org/route/v1/${osrmProfile}/${originLng},${originLat}${waypointsStr};${destLng},${destLat}?overview=full&geometries=geojson&alternatives=true`;
-    const osrmResponse = await fetch(osrmUrl);
+    
+    const osrmController = new AbortController();
+    const osrmTimeout = setTimeout(() => osrmController.abort(), 3500);
+
+    const osrmResponse = await fetch(osrmUrl, { signal: osrmController.signal });
+    clearTimeout(osrmTimeout);
     
     if (osrmResponse.ok) {
       const osrmData = await osrmResponse.json();
@@ -384,10 +395,10 @@ export async function calculateRoutes({ origin, destination, waypoints = [], tra
       console.warn(`[RouteService] OSRM responded with status: ${osrmResponse.status}`);
     }
   } catch (err) {
-    console.warn('[RouteService] OSRM failed, using high-fidelity fallback routes:', err.message);
+    console.warn('[RouteService] OSRM failed or timed out, using calibrated fallback routes:', err.message);
   }
 
-  // Fallback high-fidelity candidate routes (Route A, B, C)
+  // Fallback high-fidelity candidate routes (Route A, B, C) with explicit degradation provenance
   return generateCandidateRoutesFallback(origin, destination, directDistKm, baseMinutes, travelerProfile);
 }
 
@@ -453,7 +464,10 @@ function normalizeGoogleRoutes(googleRoutes, origin, destination, travelerProfil
         'Signalized pedestrian crossing with audible cues'
       ],
       coordinates,
-      provider: 'GOOGLE_ROUTES'
+      provider: 'GOOGLE_ROUTES',
+      dataProvenance: 'LIVE',
+      degraded: false,
+      isSimulation: false
     };
   });
 }
@@ -510,7 +524,10 @@ function normalizeOsrmRoutes(osrmRoutes, origin, destination, travelerProfile) {
         isWheelchair ? 'Wheelchair routing enabled' : 'Standard foot routing'
       ],
       coordinates,
-      provider: 'OSRM_ROUTES'
+      provider: 'OSRM_ROUTES',
+      dataProvenance: 'LIVE',
+      degraded: false,
+      isSimulation: false
     };
   });
 }
@@ -569,7 +586,11 @@ function generateCandidateRoutesFallback(origin, destination, distKm, baseMinute
         'Level-grade non-slip pavers with rest seating'
       ],
       coordinates: coordsB,
-      provider: 'WAYFARER_OFFLINE_SYNTHESIS'
+      provider: 'WAYFARER_OFFLINE_SYNTHESIS',
+      dataProvenance: 'DEGRADED_FALLBACK',
+      degraded: true,
+      degradationReason: 'External routing providers (Google Maps / OSRM) unreachable or timed out',
+      isSimulation: false
     },
     {
       id: 'C',
@@ -588,7 +609,11 @@ function generateCandidateRoutesFallback(origin, destination, distKm, baseMinute
         'Zero stepped crossings or elevator dependencies'
       ],
       coordinates: coordsC,
-      provider: 'WAYFARER_OFFLINE_SYNTHESIS'
+      provider: 'WAYFARER_OFFLINE_SYNTHESIS',
+      dataProvenance: 'DEGRADED_FALLBACK',
+      degraded: true,
+      degradationReason: 'External routing providers (Google Maps / OSRM) unreachable or timed out',
+      isSimulation: false
     },
     {
       id: 'A',
@@ -607,7 +632,11 @@ function generateCandidateRoutesFallback(origin, destination, distKm, baseMinute
         'High commercial vibrancy'
       ],
       coordinates: coordsA,
-      provider: 'WAYFARER_OFFLINE_SYNTHESIS'
+      provider: 'WAYFARER_OFFLINE_SYNTHESIS',
+      dataProvenance: 'DEGRADED_FALLBACK',
+      degraded: true,
+      degradationReason: 'External routing providers (Google Maps / OSRM) unreachable or timed out',
+      isSimulation: false
     }
   ];
 }

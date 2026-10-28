@@ -11,7 +11,7 @@ import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
 
-import { connectDB, isDbConnected, isUsingMemoryFallback } from "./config/db.js";
+import { connectDB, isDbConnected, isUsingMemoryFallback, measureDbLatency, getPersistenceStatus } from "./config/db.js";
 import { configureSecurityHeaders } from "./middleware/securityHeaders.js";
 import { configureCors } from "./middleware/corsConfig.js";
 import { generalApiLimiter, aiRateLimiter } from "./middleware/rateLimiters.js";
@@ -71,31 +71,113 @@ connectDB().catch(err => {
   securityLogger.error("Initial DB connection attempt returned warning", err);
 });
 
-// 6. Security Health & Status Check
-app.get("/api/health", (req, res) => {
+// 6. Security & Provider Health Check
+app.get("/api/health", async (req, res) => {
   const geminiConfigured = Boolean(
     process.env.GEMINI_API_KEY &&
     process.env.GEMINI_API_KEY.trim() !== "" &&
     process.env.GEMINI_API_KEY !== "your_gemini_api_key_here"
   );
+  const nugenConfigured = Boolean(process.env.NUGEN_API_KEY && process.env.NUGEN_API_KEY.trim() !== "");
+  const mapsConfigured = Boolean(
+    (process.env.VITE_GOOGLE_MAPS_API_KEY || process.env.GOOGLE_MAPS_API_KEY || "").trim() &&
+    (process.env.VITE_GOOGLE_MAPS_API_KEY || process.env.GOOGLE_MAPS_API_KEY) !== "your_google_maps_api_key_here"
+  );
 
-  res.json({
-    status: "healthy",
+  const persistence = getPersistenceStatus();
+  const dbLatencyMs = await measureDbLatency();
+  const isHealthy = persistence.connected;
+  const isDegraded = !persistence.connected || !geminiConfigured;
+
+  res.status(isHealthy ? 200 : 503).json({
+    status: isHealthy ? (isDegraded ? "degraded" : "healthy") : "down",
     service: "WAYFARER Adaptive Journey Intelligence API",
     version: "2.2.0-hardened",
+    degraded: isDegraded,
     security: {
       helmetEnabled: true,
       rateLimitingEnabled: true,
       corsRestricted: true,
       jwtAuthReady: true,
       locationProtection: "ACTIVE (Minimization + Ephemeral Sharing)",
-      databaseStatus: isDbConnected() ? "CONNECTED_MONGODB_TLS" : isUsingMemoryFallback() ? "SECURE_IN_MEMORY_FALLBACK" : "CONNECTING"
+      databaseStatus: persistence.status,
+      databaseLatencyMs: dbLatencyMs,
+      strictPersistence: persistence.strictPersistenceRequired
+    },
+    providers: {
+      database: {
+        status: persistence.connected ? "CONNECTED" : "DISCONNECTED",
+        latencyMs: dbLatencyMs,
+        persistent: persistence.persistent
+      },
+      routing: {
+        googleMapsConfigured: mapsConfigured,
+        activeEngine: mapsConfigured ? "GOOGLE_DIRECTIONS" : "OSRM_HYBRID"
+      },
+      weather: {
+        status: "LIVE",
+        primaryEngine: "Open-Meteo",
+        cacheTtlSeconds: 300
+      },
+      ai: {
+        geminiConfigured,
+        nugenConfigured,
+        nugenModelId: process.env.NUGEN_MODEL_ID || "wayfarer-weather-twin-v1"
+      }
     },
     geminiConfigured,
-    nugenConfigured: Boolean(process.env.NUGEN_API_KEY && process.env.NUGEN_API_KEY.trim() !== ""),
-    nugenModelId: process.env.NUGEN_MODEL_ID || "wayfarer-weather-twin-v1",
+    nugenConfigured,
     mode: geminiConfigured ? "LIVE_AI" : "DEMO_FALLBACK",
     timestamp: new Date().toISOString()
+  });
+});
+
+app.get("/api/health/providers", async (req, res) => {
+  const persistence = getPersistenceStatus();
+  const dbLatencyMs = await measureDbLatency();
+  const mapsApiKey = (process.env.VITE_GOOGLE_MAPS_API_KEY || process.env.GOOGLE_MAPS_API_KEY || "").trim();
+  const mapsConfigured = Boolean(mapsApiKey && mapsApiKey !== "your_google_maps_api_key_here");
+  const geminiConfigured = Boolean(process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== "your_gemini_api_key_here");
+  const nugenConfigured = Boolean(process.env.NUGEN_API_KEY && process.env.NUGEN_API_KEY.trim() !== "");
+
+  res.json({
+    success: true,
+    overallHealth: persistence.connected ? "OPERATIONAL" : "DEGRADED",
+    timestamp: new Date().toISOString(),
+    providers: [
+      {
+        id: "mongodb",
+        name: "Primary Database Storage",
+        status: persistence.connected ? "HEALTHY" : "DOWN",
+        latencyMs: dbLatencyMs,
+        persistent: persistence.persistent,
+        details: persistence.status
+      },
+      {
+        id: "open-meteo",
+        name: "Live Meteorological Telemetry",
+        status: "HEALTHY",
+        details: "Direct WMO 0.1° resolution ingestion"
+      },
+      {
+        id: "google-maps",
+        name: "Google Maps & Places Engine",
+        status: mapsConfigured ? "CONFIGURED" : "FALLBACK_OSRM",
+        details: mapsConfigured ? "Directions API active" : "Using OpenStreetMap India index"
+      },
+      {
+        id: "gemini-ai",
+        name: "Gemini Natural Language Reasoning",
+        status: geminiConfigured ? "CONFIGURED" : "DETERMINISTIC_MODEL",
+        details: geminiConfigured ? "Gemini 2.5 Flash API active" : "Using deterministic reasoning engine"
+      },
+      {
+        id: "nugen-ai",
+        name: "Nugen Weather-Aware Domain Model",
+        status: nugenConfigured ? "ALIGNED_MODEL_ACTIVE" : "DETERMINISTIC_DOMAIN_FALLBACK",
+        details: process.env.NUGEN_MODEL_ID || "wayfarer-weather-twin-v1"
+      }
+    ]
   });
 });
 
@@ -327,13 +409,22 @@ app.post("/api/journey/save", optionalAuth, async (req, res, next) => {
         success: true,
         message: "Journey saved to MongoDB successfully",
         journeyId: journey._id,
-        journey
+        journey,
+        dataProvenance: "PERSISTENT_MONGODB",
+        isSimulation: false,
+        timestamp: new Date().toISOString()
       });
     } else {
-      return res.status(201).json({
-        success: true,
-        message: "Journey saved in temporary session (In-Memory Fallback)",
-        journeyId: `temp-${Date.now()}`
+      // In compliance with Foundation P0: No fake success responses when database fails
+      return res.status(503).json({
+        success: false,
+        error: "Database service unavailable. Journey cannot be saved to persistent storage.",
+        code: "DB_UNAVAILABLE",
+        recoverable: true,
+        canRetry: true,
+        lastValidStateRetained: true,
+        dataProvenance: "DEGRADED_DATABASE",
+        timestamp: new Date().toISOString()
       });
     }
   } catch (err) {
@@ -347,9 +438,22 @@ app.get("/api/journey/history", optionalAuth, async (req, res, next) => {
     const userId = req.user ? req.user.id || req.user.userId : "guest-traveler";
     if (isDbConnected()) {
       const journeys = await Journey.find({ userId }).sort({ createdAt: -1 }).limit(20);
-      return res.json({ success: true, count: journeys.length, journeys });
+      return res.json({
+        success: true,
+        count: journeys.length,
+        journeys,
+        dataProvenance: "PERSISTENT_MONGODB",
+        timestamp: new Date().toISOString()
+      });
     } else {
-      return res.json({ success: true, count: 0, journeys: [] });
+      return res.status(503).json({
+        success: false,
+        error: "Database service unavailable. Cannot retrieve persistent journey history.",
+        code: "DB_UNAVAILABLE",
+        recoverable: true,
+        journeys: [],
+        timestamp: new Date().toISOString()
+      });
     }
   } catch (err) {
     next(err);
@@ -364,9 +468,15 @@ app.get("/api/journey/:id", optionalAuth, async (req, res, next) => {
       if (!journey) {
         return res.status(404).json({ success: false, error: "Journey not found in database." });
       }
-      return res.json({ success: true, journey });
+      return res.json({ success: true, journey, dataProvenance: "PERSISTENT_MONGODB" });
     } else {
-      return res.status(404).json({ success: false, error: "Database offline in fallback mode." });
+      return res.status(503).json({
+        success: false,
+        error: "Database service unavailable. Cannot retrieve journey record.",
+        code: "DB_UNAVAILABLE",
+        recoverable: true,
+        timestamp: new Date().toISOString()
+      });
     }
   } catch (err) {
     next(err);

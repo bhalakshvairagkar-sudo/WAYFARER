@@ -14,6 +14,7 @@ import LiveJourneyPageView from './pages/LiveJourneyPageView.jsx';
 import EventsCenterPageView from './pages/EventsCenterPageView.jsx';
 import RecoveryPageView from './pages/RecoveryPageView.jsx';
 import OperatorPageView from './pages/OperatorPageView.jsx';
+import ControllerPageView from './pages/ControllerPageView.jsx';
 import HistoryPageView from './pages/HistoryPageView.jsx';
 import SharedLocationPageView from './pages/SharedLocationPageView.jsx';
 
@@ -40,6 +41,7 @@ export default function App() {
                 <Route path="/events" element={<EventsCenterPageView />} />
                 <Route path="/recovery/:id" element={<RecoveryPageView />} />
                 <Route path="/operator" element={<OperatorPageView />} />
+                <Route path="/controller" element={<ControllerPageView />} />
                 <Route path="/history" element={<HistoryPageView />} />
                 <Route path="/shared-location/:token" element={<SharedLocationPageView />} />
                 <Route path="*" element={<Navigate to="/" replace />} />

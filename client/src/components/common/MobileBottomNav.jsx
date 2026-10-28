@@ -1,17 +1,28 @@
 import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { Home, Compass, Map, Bell, User } from 'lucide-react';
+import { Home, Compass, Map, Bell, User, Radio, Activity } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext.jsx';
 
 export default function MobileBottomNav() {
   const location = useLocation();
+  const { user } = useAuth();
+  const isController = user?.role === 'CONTROLLER' || user?.role === 'ADMIN';
 
-  const navItems = [
-    { to: '/', label: 'Home', icon: <Home className="w-6 h-6" /> },
-    { to: '/planner', label: 'Plan', icon: <Compass className="w-6 h-6" /> },
-    { to: '/journey/active', label: 'Journey', icon: <Map className="w-6 h-6" /> },
-    { to: '/events', label: 'Alerts', icon: <Bell className="w-6 h-6" /> },
-    { to: '/profile', label: 'Profile', icon: <User className="w-6 h-6" /> }
-  ];
+  const navItems = isController
+    ? [
+        { to: '/controller', label: 'Command', icon: <Radio className="w-6 h-6 text-rose-600" /> },
+        { to: '/operator', label: 'Fleet', icon: <Activity className="w-6 h-6" /> },
+        { to: '/events', label: 'Alerts', icon: <Bell className="w-6 h-6" /> },
+        { to: '/', label: 'Traveler', icon: <Home className="w-6 h-6" /> },
+        { to: '/profile', label: 'Profile', icon: <User className="w-6 h-6" /> }
+      ]
+    : [
+        { to: '/', label: 'Home', icon: <Home className="w-6 h-6" /> },
+        { to: '/planner', label: 'Plan', icon: <Compass className="w-6 h-6" /> },
+        { to: '/journey/active', label: 'Journey', icon: <Map className="w-6 h-6" /> },
+        { to: '/events', label: 'Alerts', icon: <Bell className="w-6 h-6" /> },
+        { to: '/profile', label: 'Profile', icon: <User className="w-6 h-6" /> }
+      ];
 
   return (
     <nav className="sm:hidden fixed bottom-0 w-full bg-white border-t border-slate-200 pb-safe z-[999] shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">

@@ -19,16 +19,25 @@ export default function Navbar() {
 
   const isAiLive = aiStatus?.geminiConfigured || aiStatus?.mode === 'LIVE_AI';
   const isGoogleLive = routingMode === 'LIVE_GOOGLE' || isGoogleMapsConfigured();
+  const isController = user?.role === 'CONTROLLER' || user?.role === 'ADMIN';
 
-  const navLinks = [
-    { to: '/', label: 'Overview' },
-    { to: '/profile', label: 'Profile' },
-    { to: '/planner', label: 'Planner' },
-    { to: '/journey/active', label: 'Live Journey' },
-    { to: '/events', label: 'Events' },
-    { to: '/operator', label: 'Operator' },
-    { to: '/history', label: 'History' }
-  ];
+  const navLinks = isController
+    ? [
+        { to: '/controller', label: 'Command Center', isHighlighted: true },
+        { to: '/operator', label: 'Fleet Corridors' },
+        { to: '/events', label: 'Events' },
+        { to: '/', label: 'Traveler View' },
+        { to: '/profile', label: 'Profile' }
+      ]
+    : [
+        { to: '/', label: 'Overview' },
+        { to: '/profile', label: 'Profile' },
+        { to: '/planner', label: 'Planner' },
+        { to: '/journey/active', label: 'Live Journey' },
+        { to: '/events', label: 'Events' },
+        { to: '/operator', label: 'Operator' },
+        { to: '/history', label: 'History' }
+      ];
 
   return (
     <header className="bg-white border-b border-slate-200 sticky top-0 z-50 shadow-xs">
@@ -77,16 +86,26 @@ export default function Navbar() {
           {/* Authentication Badge / Sign In Button */}
           {isAuthenticated && user ? (
             <div className="flex items-center gap-2 bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200 text-xs">
-              <Link to="/profile" className="flex items-center gap-1.5 hover:text-brand-600 transition">
-                <User className="w-3.5 h-3.5 text-brand-600" />
-                <span className="font-bold text-slate-800">{(user?.name || user?.email || 'Traveler').split(' ')[0]}</span>
-                <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded-md bg-brand-100 text-brand-700">
-                  {user.travelerProfile?.mobility === 'wheelchair' ? '♿ Wheelchair' :
-                   user.travelerProfile?.mobility === 'elderly' ? '🧓 Senior' :
-                   user.travelerProfile?.mobility === 'visually_impaired' ? '👁️ Visual' :
-                   '🚶 Standard'}
-                </span>
-              </Link>
+              {isController ? (
+                <Link to="/controller" className="flex items-center gap-1.5 hover:text-rose-600 transition">
+                  <ShieldAlert className="w-3.5 h-3.5 text-rose-600" />
+                  <span className="font-bold text-slate-800">{(user?.name || user?.email || 'Controller').split(' ')[0]}</span>
+                  <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded-md bg-rose-100 text-rose-800">
+                    🚨 {user?.organization ? user.organization.substring(0, 14) + '…' : 'Controller'}
+                  </span>
+                </Link>
+              ) : (
+                <Link to="/profile" className="flex items-center gap-1.5 hover:text-brand-600 transition">
+                  <User className="w-3.5 h-3.5 text-brand-600" />
+                  <span className="font-bold text-slate-800">{(user?.name || user?.email || 'Traveler').split(' ')[0]}</span>
+                  <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded-md bg-brand-100 text-brand-700">
+                    {user.travelerProfile?.mobility === 'wheelchair' ? '♿ Wheelchair' :
+                     user.travelerProfile?.mobility === 'elderly' ? '🧓 Senior' :
+                     user.travelerProfile?.mobility === 'visually_impaired' ? '👁️ Visual' :
+                     '🚶 Standard'}
+                  </span>
+                </Link>
+              )}
               <button
                 onClick={logout}
                 title="Log out of secure session"

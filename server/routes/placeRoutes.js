@@ -192,10 +192,14 @@ router.get('/search', async (req, res) => {
 
   // 2. Query Photon Komoot Geocoder for micro-spots, shops, streets, clinics, cafes in India
   try {
+    const photonController = new AbortController();
+    const photonTimeout = setTimeout(() => photonController.abort(), 2500);
     const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=10&bbox=68.0,8.0,97.5,37.0`;
     const photonRes = await fetch(photonUrl, {
-      headers: { 'User-Agent': 'Wayfarer-AI-India-Explorer/2.2' }
+      headers: { 'User-Agent': 'Wayfarer-AI-India-Explorer/2.2' },
+      signal: photonController.signal
     });
+    clearTimeout(photonTimeout);
     if (photonRes.ok) {
       const photonData = await photonRes.json();
       if (Array.isArray(photonData.features)) {
@@ -233,17 +237,21 @@ router.get('/search', async (req, res) => {
       }
     }
   } catch (err) {
-    // Non-blocking fallback
+    // Non-blocking timeout/network fallback
   }
 
   // 3. Query Live OpenStreetMap Nominatim for India (villages, postal codes, junctions)
   try {
+    const osmController = new AbortController();
+    const osmTimeout = setTimeout(() => osmController.abort(), 2500);
     const nominatimUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&countrycodes=in&format=json&addressdetails=1&limit=10`;
     const osmResponse = await fetch(nominatimUrl, {
       headers: {
         'User-Agent': 'Wayfarer-AI-India-Explorer/2.2'
-      }
+      },
+      signal: osmController.signal
     });
+    clearTimeout(osmTimeout);
 
     if (osmResponse.ok) {
       const data = await osmResponse.json();
@@ -308,10 +316,14 @@ router.get('/reverse', async (req, res) => {
   }
 
   try {
+    const revController = new AbortController();
+    const revTimeout = setTimeout(() => revController.abort(), 2500);
     const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1`;
     const response = await fetch(url, {
-      headers: { 'User-Agent': 'Wayfarer-AI-India-ReverseGeocode/2.2' }
+      headers: { 'User-Agent': 'Wayfarer-AI-India-ReverseGeocode/2.2' },
+      signal: revController.signal
     });
+    clearTimeout(revTimeout);
     if (response.ok) {
       const data = await response.json();
       const address = data.address || {};

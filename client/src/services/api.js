@@ -57,11 +57,11 @@ export async function checkHealth() {
 // Authentication & User Profile Endpoints
 // -------------------------------------------------------------
 
-export async function registerUser({ email, password, name, role = 'USER', privacySettings, travelerProfile }) {
+export async function registerUser({ email, password, name, role = 'USER', organization = '', phone = '', privacySettings, travelerProfile }) {
   const res = await fetch(`${API_BASE}/auth/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password, name, role, privacySettings, travelerProfile })
+    body: JSON.stringify({ email, password, name, role, organization, phone, privacySettings, travelerProfile })
   });
 
   const data = await res.json();
@@ -350,4 +350,71 @@ export async function confirmIncidentFeedback(incidentId, feedbackPayload = {}) 
     return { success: true, offline: true, ...feedbackPayload };
   }
 }
+
+export async function dispatchEmergencyBroadcast(broadcastPayload = {}) {
+  try {
+    const res = await fetch(`${API_BASE}/community/broadcast`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify(broadcastPayload)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to dispatch broadcast');
+    return data;
+  } catch (err) {
+    console.error('[API Service] Emergency broadcast error:', err);
+    throw err;
+  }
+}
+
+export async function saveJourney(journeyPayload) {
+  const res = await fetch(`${API_BASE}/journey/save`, {
+    method: 'POST',
+    headers: getHeaders(),
+    body: JSON.stringify(journeyPayload)
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    const error = new Error(data.error || 'Failed to save journey');
+    error.status = res.status;
+    error.code = data.code || 'SAVE_ERROR';
+    error.recoverable = data.recoverable !== false;
+    error.lastValidStateRetained = Boolean(data.lastValidStateRetained);
+    throw error;
+  }
+  return data;
+}
+
+export async function fetchJourneyHistory() {
+  const res = await fetch(`${API_BASE}/journey/history`, {
+    headers: getHeaders()
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    const error = new Error(data.error || 'Failed to fetch journey history');
+    error.status = res.status;
+    error.code = data.code || 'FETCH_ERROR';
+    error.recoverable = Boolean(data.recoverable);
+    throw error;
+  }
+  return data;
+}
+
+export async function fetchProviderHealth() {
+  try {
+    const res = await fetch(`${API_BASE}/health/providers`, {
+      headers: getHeaders()
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  } catch (err) {
+    return {
+      success: false,
+      overallHealth: 'DEGRADED',
+      error: err.message,
+      providers: []
+    };
+  }
+}
+
 

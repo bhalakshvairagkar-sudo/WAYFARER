@@ -23,6 +23,9 @@ export function errorHandler(err, req, res, next) {
     error: isProduction && statusCode === 500
       ? 'An internal security-compliant error occurred. Please contact support.'
       : err.message || 'An unexpected error occurred.',
+    code: err.code || (statusCode === 503 ? 'SERVICE_UNAVAILABLE' : statusCode === 400 ? 'BAD_REQUEST' : 'INTERNAL_ERROR'),
+    recoverable: err.recoverable !== undefined ? err.recoverable : (statusCode === 503 || statusCode === 504 || statusCode === 429),
+    timestamp: new Date().toISOString(),
     ...(isProduction ? {} : { stack: err.stack })
   });
 }

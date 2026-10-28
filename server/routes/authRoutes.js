@@ -21,7 +21,9 @@ const registerSchema = z.object({
   email: z.string().email('Please enter a valid email address').trim().toLowerCase(),
   password: z.string().min(8, 'Password must be at least 8 characters long').max(72, 'Password cannot exceed 72 characters'),
   name: z.string().min(2, 'Name must be at least 2 characters long').max(100).trim(),
-  role: z.enum(['USER', 'ADMIN', 'EMERGENCY_CONTACT', 'TRAVEL_PARTNER']).optional().default('USER'),
+  role: z.enum(['USER', 'CONTROLLER', 'ADMIN', 'EMERGENCY_CONTACT', 'TRAVEL_PARTNER']).optional().default('USER'),
+  organization: z.string().max(120).optional().default(''),
+  phone: z.string().max(30).optional().default(''),
   privacySettings: z.object({
     locationPrecision: z.enum(['precise', 'approximate']).optional().default('precise'),
     allowSharing: z.boolean().optional().default(true),
@@ -35,7 +37,8 @@ const registerSchema = z.object({
     walkingTolerance: z.string().optional().default('medium'),
     crowdTolerance: z.string().optional().default('medium'),
     safetyPriority: z.string().optional().default('high'),
-    preferShade: z.boolean().optional().default(false)
+    preferShade: z.boolean().optional().default(false),
+    specialAssistance: z.string().optional().default('none')
   }).optional().default({})
 });
 
@@ -58,6 +61,8 @@ function signToken(user) {
       email: user.email,
       name: user.name,
       role: user.role,
+      organization: user.organization || '',
+      phone: user.phone || '',
       travelerProfile: user.travelerProfile || { mobility: 'standard', stairsAllowed: true, needsElevator: false }
     },
     getJwtSecret(),
@@ -68,7 +73,7 @@ function signToken(user) {
 // 1. User Registration
 router.post('/register', authRateLimiter, validateBody(registerSchema), async (req, res, next) => {
   try {
-    const { email, password, name, role, privacySettings, travelerProfile } = req.body;
+    const { email, password, name, role, organization, phone, privacySettings, travelerProfile } = req.body;
     const defaultProfile = {
       mobility: 'standard',
       stairsAllowed: true,
@@ -78,11 +83,21 @@ router.post('/register', authRateLimiter, validateBody(registerSchema), async (r
       crowdTolerance: 'medium',
       safetyPriority: 'high',
       preferShade: false,
+      specialAssistance: 'none',
       ...(travelerProfile || {})
     };
 
     if (isUsingMemoryFallback()) {
-      // In-Memory Fallback implementation
+      if (process.env.NODE_ENV === 'production' || process.env.STRICT_PERSISTENCE === 'true') {
+        return res.status(503).json({
+          success: false,
+          error: 'Production database unavailable. User account registration disabled in offline state.',
+          code: 'DB_UNAVAILABLE',
+          recoverable: true
+        });
+      }
+
+      // In-Memory Fallback implementation for local development/test
       if (inMemoryStore.users.has(email)) {
         return res.status(409).json({ success: false, error: 'User with this email already exists.' });
       }
@@ -94,6 +109,8 @@ router.post('/register', authRateLimiter, validateBody(registerSchema), async (r
         email,
         name,
         role: role || 'USER',
+        organization: organization || '',
+        phone: phone || '',
         passwordHash,
         privacySettings: privacySettings || { locationPrecision: 'precise', allowSharing: true, retentionDays: 30 },
         travelerProfile: defaultProfile,
@@ -114,11 +131,18 @@ router.post('/register', authRateLimiter, validateBody(registerSchema), async (r
         success: true,
         message: 'Registration successful',
         token,
+        persistence: {
+          mode: 'IN_MEMORY_DEMO',
+          persistent: false,
+          warning: 'User persisted in temporary in-memory store; will be lost on server restart.'
+        },
         user: {
           id: newUser.id,
           email: newUser.email,
           name: newUser.name,
           role: newUser.role,
+          organization: newUser.organization,
+          phone: newUser.phone,
           privacySettings: newUser.privacySettings,
           travelerProfile: newUser.travelerProfile
         }
@@ -135,7 +159,9 @@ router.post('/register', authRateLimiter, validateBody(registerSchema), async (r
       email,
       passwordHash: password, // Pre-save hook hashes this
       name,
-      role,
+      role: role || 'USER',
+      organization: organization || '',
+      phone: phone || '',
       privacySettings,
       travelerProfile: defaultProfile
     });
@@ -154,11 +180,17 @@ router.post('/register', authRateLimiter, validateBody(registerSchema), async (r
       success: true,
       message: 'Registration successful',
       token,
+      persistence: {
+        mode: 'PERSISTENT_MONGODB',
+        persistent: true
+      },
       user: {
         id: user._id.toString(),
         email: user.email,
         name: user.name,
         role: user.role,
+        organization: user.organization,
+        phone: user.phone,
         privacySettings: user.privacySettings,
         travelerProfile: user.travelerProfile
       }
@@ -177,6 +209,14 @@ router.post('/login', authRateLimiter, validateBody(loginSchema), async (req, re
     let passwordMatch = false;
 
     if (isUsingMemoryFallback()) {
+      if (process.env.NODE_ENV === 'production' || process.env.STRICT_PERSISTENCE === 'true') {
+        return res.status(503).json({
+          success: false,
+          error: 'Production database unavailable. Authentication cannot proceed.',
+          code: 'DB_UNAVAILABLE',
+          recoverable: true
+        });
+      }
       user = inMemoryStore.users.get(email);
       if (user) {
         passwordMatch = await bcrypt.compare(password, user.passwordHash);
@@ -218,6 +258,8 @@ router.post('/login', authRateLimiter, validateBody(loginSchema), async (req, re
         email: user.email,
         name: user.name,
         role: user.role,
+        organization: user.organization || '',
+        phone: user.phone || '',
         privacySettings: user.privacySettings,
         travelerProfile: user.travelerProfile || { mobility: 'standard', stairsAllowed: true, needsElevator: false }
       }
@@ -231,6 +273,14 @@ router.post('/login', authRateLimiter, validateBody(loginSchema), async (req, re
 router.get('/me', authenticateToken, async (req, res, next) => {
   try {
     if (isUsingMemoryFallback()) {
+      if (process.env.NODE_ENV === 'production' || process.env.STRICT_PERSISTENCE === 'true') {
+        return res.status(503).json({
+          success: false,
+          error: 'Production database unavailable. Profile modifications disabled in offline state.',
+          code: 'DB_UNAVAILABLE',
+          recoverable: true
+        });
+      }
       const user = inMemoryStore.users.get(req.user.email);
       if (!user) {
         return res.status(404).json({ success: false, error: 'User profile not found.' });
@@ -242,6 +292,8 @@ router.get('/me', authenticateToken, async (req, res, next) => {
           email: user.email,
           name: user.name,
           role: user.role,
+          organization: user.organization || '',
+          phone: user.phone || '',
           privacySettings: user.privacySettings,
           travelerProfile: user.travelerProfile || { mobility: 'standard', stairsAllowed: true, needsElevator: false }
         }
@@ -260,6 +312,8 @@ router.get('/me', authenticateToken, async (req, res, next) => {
         email: user.email,
         name: user.name,
         role: user.role,
+        organization: user.organization || '',
+        phone: user.phone || '',
         privacySettings: user.privacySettings,
         travelerProfile: user.travelerProfile || { mobility: 'standard', stairsAllowed: true, needsElevator: false }
       }
@@ -275,6 +329,14 @@ router.put('/privacy', authenticateToken, validateBody(privacySchema), async (re
     const updates = req.body;
 
     if (isUsingMemoryFallback()) {
+      if (process.env.NODE_ENV === 'production' || process.env.STRICT_PERSISTENCE === 'true') {
+        return res.status(503).json({
+          success: false,
+          error: 'Production database unavailable. Profile modifications disabled in offline state.',
+          code: 'DB_UNAVAILABLE',
+          recoverable: true
+        });
+      }
       const user = inMemoryStore.users.get(req.user.email);
       if (!user) return res.status(404).json({ success: false, error: 'User not found' });
       user.privacySettings = { ...user.privacySettings, ...updates };
@@ -299,12 +361,22 @@ router.put('/privacy', authenticateToken, validateBody(privacySchema), async (re
 // 5. Update Traveler Requirements & Profile Settings
 router.put('/profile', authenticateToken, async (req, res, next) => {
   try {
-    const { name, travelerProfile } = req.body;
+    const { name, organization, phone, travelerProfile } = req.body;
 
     if (isUsingMemoryFallback()) {
+      if (process.env.NODE_ENV === 'production' || process.env.STRICT_PERSISTENCE === 'true') {
+        return res.status(503).json({
+          success: false,
+          error: 'Production database unavailable. Profile modifications disabled in offline state.',
+          code: 'DB_UNAVAILABLE',
+          recoverable: true
+        });
+      }
       const user = inMemoryStore.users.get(req.user.email);
       if (!user) return res.status(404).json({ success: false, error: 'User not found' });
       if (name) user.name = name;
+      if (organization !== undefined) user.organization = organization;
+      if (phone !== undefined) user.phone = phone;
       if (travelerProfile) {
         user.travelerProfile = { ...(user.travelerProfile || {}), ...travelerProfile };
       }
@@ -316,6 +388,8 @@ router.put('/profile', authenticateToken, async (req, res, next) => {
           email: user.email,
           name: user.name,
           role: user.role,
+          organization: user.organization || '',
+          phone: user.phone || '',
           privacySettings: user.privacySettings,
           travelerProfile: user.travelerProfile
         }
@@ -325,6 +399,8 @@ router.put('/profile', authenticateToken, async (req, res, next) => {
     const user = await User.findById(req.user.id);
     if (!user) return res.status(404).json({ success: false, error: 'User not found' });
     if (name) user.name = name;
+    if (organization !== undefined) user.organization = organization;
+    if (phone !== undefined) user.phone = phone;
     if (travelerProfile) {
       user.travelerProfile = { ...(user.travelerProfile || {}), ...travelerProfile };
     }
@@ -338,6 +414,8 @@ router.put('/profile', authenticateToken, async (req, res, next) => {
         email: user.email,
         name: user.name,
         role: user.role,
+        organization: user.organization || '',
+        phone: user.phone || '',
         privacySettings: user.privacySettings,
         travelerProfile: user.travelerProfile
       }

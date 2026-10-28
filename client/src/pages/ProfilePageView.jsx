@@ -159,6 +159,30 @@ export default function ProfilePageView() {
         </div>
       )}
 
+      {user?.role === 'CONTROLLER' && (
+        <div className="bg-rose-50 border border-rose-200 rounded-3xl p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <span className="text-[10px] font-black uppercase text-rose-700 tracking-wider">
+              Transit Controller Operational Credentials
+            </span>
+            <h3 className="text-base font-black text-rose-950">
+              {user?.organization || 'Transit Control Operations Center'}
+            </h3>
+            <p className="text-xs text-rose-700">
+              Official Dispatch Phone: {user?.phone || 'Configured via command operations'}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => navigate('/controller')}
+            className="px-4 py-2.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-extrabold transition shadow-md flex items-center gap-2 self-start sm:self-auto"
+          >
+            <span>Open Command Center</span>
+            <ArrowRight className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         
         {/* Left Column: Preferences */}
