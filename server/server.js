@@ -39,6 +39,7 @@ import {
 } from "./engine/scoringEngine.js";
 import { applyJourneyEvent } from "./engine/eventEngine.js";
 import { processEventAndReroute, ROUTE_LIFECYCLE } from "./engine/reroutingEngine.js";
+import { processNotificationForReroute, DEFAULT_NOTIFICATION_PREFERENCES } from "./engine/notificationEngine.js";
 import { checkDownstreamImpact } from "./engine/downstreamOptimizer.js";
 import { generatePlanExplanation, generateAdaptationExplanation } from "./engine/explanationEngine.js";
 import { calculateJourneyHealth } from "./engine/journeyHealthEngine.js";
@@ -313,10 +314,10 @@ app.post("/api/journey/explain-plan", aiRateLimiter, optionalAuth, async (req, r
   }
 });
 
-// 12. Apply Dynamic Event (Resilience & Event-Driven Rerouting Engine v2.0)
+// 12. Apply Dynamic Event (Resilience & Event-Driven Rerouting Engine v2.0 with Controlled Notifications)
 app.post("/api/journey/event", optionalAuth, async (req, res, next) => {
   try {
-    const { journeyState, event, baseVersion, autoCommit } = req.body;
+    const { journeyState, event, baseVersion, autoCommit, notificationPreferences, pushSubscription } = req.body;
 
     if (!journeyState || !event) {
       return res.status(400).json({ success: false, error: "Missing journeyState or event payload." });
@@ -329,17 +330,53 @@ app.post("/api/journey/event", optionalAuth, async (req, res, next) => {
       autoCommit: autoCommit !== false
     });
 
-    if (rerouteResult.conflict) {
-      return res.status(409).json(rerouteResult);
+    // Evaluate controlled notifications based on thresholds, throttling, and preferences
+    const userPrefs = req.user?.notificationPreferences || notificationPreferences || DEFAULT_NOTIFICATION_PREFERENCES;
+    const finalResult = await processNotificationForReroute({
+      journeyState,
+      event,
+      rerouteResult,
+      userPreferences: userPrefs,
+      pushSubscription: pushSubscription || null
+    });
+
+    if (finalResult.conflict) {
+      return res.status(409).json(finalResult);
     }
 
-    if (rerouteResult.lifecycleState === ROUTE_LIFECYCLE.FAILED_NO_SAFE_ALTERNATIVE) {
-      return res.status(422).json(rerouteResult);
+    if (finalResult.lifecycleState === ROUTE_LIFECYCLE.FAILED_NO_SAFE_ALTERNATIVE) {
+      return res.status(422).json(finalResult);
     }
 
-    res.json(rerouteResult);
+    res.json(finalResult);
   } catch (err) {
     next(err);
+  }
+});
+
+// 13. Controlled Notifications & User Preferences API
+app.get("/api/notifications/preferences", optionalAuth, (req, res) => {
+  const prefs = req.user?.notificationPreferences || DEFAULT_NOTIFICATION_PREFERENCES;
+  res.json({
+    success: true,
+    preferences: prefs
+  });
+});
+
+app.post("/api/notifications/preferences", optionalAuth, async (req, res) => {
+  try {
+    const newPrefs = { ...DEFAULT_NOTIFICATION_PREFERENCES, ...(req.body?.preferences || req.body || {}) };
+    if (req.user && isDbConnected()) {
+      req.user.notificationPreferences = newPrefs;
+      await req.user.save();
+    }
+    res.json({
+      success: true,
+      preferences: newPrefs,
+      message: "Notification preferences updated successfully."
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 

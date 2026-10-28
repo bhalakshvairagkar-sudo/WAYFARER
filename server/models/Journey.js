@@ -88,6 +88,10 @@ const JourneySchema = new mongoose.Schema(
     routeTransitions: {
       type: Array,
       default: []
+    },
+    notifications: {
+      type: Array,
+      default: []
     }
   },
   {

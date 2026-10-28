@@ -93,6 +93,35 @@ const UserSchema = new mongoose.Schema(
         type: Boolean,
         default: false
       }
+    },
+    notificationPreferences: {
+      enabled: {
+        type: Boolean,
+        default: true
+      },
+      allowNonCritical: {
+        type: Boolean,
+        default: true
+      },
+      minEtaDeltaMinutes: {
+        type: Number,
+        default: 10,
+        min: 1
+      },
+      minRiskScoreDelta: {
+        type: Number,
+        default: 15,
+        min: 1
+      },
+      cooldownMinutes: {
+        type: Number,
+        default: 15,
+        min: 0
+      },
+      browserPushEnabled: {
+        type: Boolean,
+        default: false
+      }
     }
   },
   {
