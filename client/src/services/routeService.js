@@ -7,6 +7,7 @@
  */
 
 import { isGoogleMapsConfigured, loadGoogleMapsScript } from './googleMapsLoader.js';
+import { calculateRoutesApi } from './api.js';
 
 const placeCache = new Map();
 
@@ -310,17 +311,46 @@ async function resolveFallbackCoordinates(name = '', placeId = '') {
  * @param {Object} params { origin, destination, waypoints, travelerProfile }
  * @returns {Promise<Array>} Normalized and WAYFARER-scored candidate routes
  */
-export async function calculateRoutes({ origin, destination, waypoints = [], travelerProfile = {} }) {
+export async function calculateRoutes({
+  origin,
+  destination,
+  waypoints = [],
+  travelerProfile = {},
+  travelMode = 'walking',
+  allowFallback = true
+}) {
   const originLat = origin?.lat || 18.9220;
   const originLng = origin?.lng || 72.8347;
   const destLat = destination?.lat || 18.9432;
   const destLng = destination?.lng || 72.8230;
 
+  // 1. Authoritative Backend Production Route Calculation (validates coordinates, invokes Google Directions / OSRM, applies route cache)
+  try {
+    const backendResult = await calculateRoutesApi({
+      origin: { lat: originLat, lng: originLng, name: origin?.name },
+      destination: { lat: destLat, lng: destLng, name: destination?.name },
+      waypoints: waypoints.map((w) => ({ lat: w.lat, lng: w.lng, name: w.name })),
+      travelMode,
+      traveler: travelerProfile
+    });
+
+    if (backendResult && backendResult.routes && backendResult.routes.length > 0) {
+      return backendResult.routes.map((r) => ({
+        ...r,
+        dataProvenance: backendResult.dataProvenance || 'LIVE_PROVIDER',
+        provider: backendResult.provider || r.provider,
+        retrievalTimestamp: backendResult.retrievalTimestamp || new Date().toISOString()
+      }));
+    }
+  } catch (err) {
+    console.warn('[RouteService] Authoritative backend route calculation error:', err.message);
+  }
+
   // Calculate distance in km
   const directDistKm = calculateHaversine(originLat, originLng, destLat, destLng);
   const baseMinutes = Math.max(10, Math.round(directDistKm * 3.5));
 
-  // If Google Maps is configured, try Google DirectionsService with timeout protection
+  // 2. Direct browser Google Directions fallback if Google Maps JS is loaded
   if (isGoogleMapsConfigured()) {
     try {
       const maps = await loadGoogleMapsScript();
@@ -372,7 +402,7 @@ export async function calculateRoutes({ origin, destination, waypoints = [], tra
     }
   }
 
-  // Try OSRM if Google Maps is not configured or failed
+  // 3. Try browser OSRM if Google Maps is not configured or failed
   try {
     const waypointsStr = waypoints.map((w) => `;${w.lng},${w.lat}`).join('');
     // Use driving profile for long trips across India to avoid foot routing failure
@@ -395,10 +425,17 @@ export async function calculateRoutes({ origin, destination, waypoints = [], tra
       console.warn(`[RouteService] OSRM responded with status: ${osrmResponse.status}`);
     }
   } catch (err) {
-    console.warn('[RouteService] OSRM failed or timed out, using calibrated fallback routes:', err.message);
+    console.warn('[RouteService] OSRM failed or timed out:', err.message);
   }
 
-  // Fallback high-fidelity candidate routes (Route A, B, C) with explicit degradation provenance
+  // 4. Strict Non-Fabrication Guarantee: Throw if fallback not explicitly allowed
+  if (!allowFallback) {
+    const error = new Error('No routing provider could calculate a valid route for these coordinates. Fabricated routes are strictly prohibited.');
+    error.code = 'ROUTE_UNAVAILABLE';
+    throw error;
+  }
+
+  // 5. Disclosed Last-Known Prototype Fallback
   return generateCandidateRoutesFallback(origin, destination, directDistKm, baseMinutes, travelerProfile);
 }
 

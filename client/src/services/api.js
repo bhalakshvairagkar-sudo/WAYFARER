@@ -417,4 +417,37 @@ export async function fetchProviderHealth() {
   }
 }
 
+export async function calculateRoutesApi({ origin, destination, waypoints = [], travelMode = 'walking', traveler = {} }) {
+  const res = await fetch(`${API_BASE}/routes/calculate`, {
+    method: 'POST',
+    headers: getHeaders(),
+    body: JSON.stringify({ origin, destination, waypoints, travelMode, traveler })
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    const error = new Error(data.error || 'Failed to calculate route');
+    error.status = res.status;
+    error.code = data.code || 'ROUTING_ERROR';
+    error.recoverable = true;
+    error.routes = data.routes || [];
+    throw error;
+  }
+  return data;
+}
+
+export async function fetchRoutingStatus() {
+  try {
+    const res = await fetch(`${API_BASE}/routes/status`, { headers: getHeaders() });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  } catch (err) {
+    return {
+      success: false,
+      googleMapsConfigured: false,
+      osrmAvailable: true,
+      error: err.message
+    };
+  }
+}
+
 

@@ -25,6 +25,7 @@ import communityRoutes from "./routes/communityRoutes.js";
 import placeRoutes from "./routes/placeRoutes.js";
 import digitalTwinRoutes from "./routes/digitalTwinRoutes.js";
 import nugenRoutes from "./routes/nugenRoutes.js";
+import routeRoutes from "./routes/routeRoutes.js";
 import { Journey } from "./models/Journey.js";
 
 import { DEFAULT_TRIP, DEFAULT_TRAVELER, DEFAULT_STOPS } from "./data/defaultJourney.js";
@@ -221,6 +222,9 @@ app.use("/api/digital-twin", digitalTwinRoutes);
 
 // 12. Mount Nugen Aligned Domain Intelligence Routes
 app.use("/api/ai/nugen", nugenRoutes);
+
+// 13. Mount Production Route Planning Routes
+app.use("/api/routes", routeRoutes);
 
 // 10. Default Preloaded Journey (Optional Auth: Supports Guest/Demo or Authenticated Traveler)
 app.get("/api/journey/default", optionalAuth, (req, res, next) => {

@@ -27,6 +27,7 @@ export default function PlannerPageView() {
   const [destination, setDestination] = useState(null);
   const [stops, setStops] = useState([]);
   const [description, setDescription] = useState('');
+  const [routeError, setRouteError] = useState(null);
 
   const [selectedRouteId, setSelectedRouteId] = useState('B');
   const [previewSegment, setPreviewSegment] = useState(null);
@@ -183,6 +184,7 @@ export default function PlannerPageView() {
   };
 
   const handleGenerateJourney = async () => {
+    setRouteError(null);
     try {
       await planNewJourney({
         origin,
@@ -193,8 +195,8 @@ export default function PlannerPageView() {
       });
       navigate('/journey/active');
     } catch (e) {
-      console.error('[Planner] Generate error:', e);
-      navigate('/journey/active');
+      console.error('[Planner] Route calculation error:', e);
+      setRouteError(e.message || 'Routing provider unavailable for these coordinates. Please check locations or connectivity.');
     }
   };
 
@@ -313,8 +315,22 @@ export default function PlannerPageView() {
         onSelectPlace={(p) => p && setDestination(p)}
       />
 
+      {/* Route Error Display (No fake routes) */}
+      {routeError && (
+        <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold flex items-center justify-between gap-2 animate-in fade-in">
+          <span>{routeError}</span>
+          <button
+            type="button"
+            onClick={() => setRouteError(null)}
+            className="text-rose-500 hover:text-rose-700 font-bold shrink-0 text-[11px]"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
       {/* Generate Button */}
-      <div className="pt-3">
+      <div className="pt-2">
         <button
           type="button"
           disabled={isLoading || !origin || !destination}
@@ -333,31 +349,62 @@ export default function PlannerPageView() {
 
       {/* Quick Route Scoring Preview Cards */}
       {previewSegment?.candidateRoutes && (
-        <div className="pt-4 border-t border-slate-100 space-y-2 pb-4">
-          <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider block">
-            Alternative Routes
-          </span>
+        <div className="pt-4 border-t border-slate-100 space-y-2.5 pb-4">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider block">
+              Alternative Routes ({previewSegment.candidateRoutes.length})
+            </span>
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
+              {previewSegment.candidateRoutes[0]?.provider === 'GOOGLE_DIRECTIONS' || previewSegment.candidateRoutes[0]?.provider === 'GOOGLE_ROUTES'
+                ? '🟢 Google Directions (Live)'
+                : previewSegment.candidateRoutes[0]?.provider === 'OSRM_ROUTING' || previewSegment.candidateRoutes[0]?.provider === 'OSRM_ROUTES'
+                ? '🟢 OpenStreetMap OSRM (Live)'
+                : previewSegment.candidateRoutes[0]?.dataProvenance === 'CACHED_PROVIDER'
+                ? '🔵 Verified Cache'
+                : '🟡 Calibrated Offline Prototype'}
+            </span>
+          </div>
+
           <div className="flex gap-3 overflow-x-auto pb-2 snap-x">
-            {previewSegment.candidateRoutes.map((r) => (
-              <div
-                key={r.id}
-                onClick={() => setSelectedRouteId(r.id)}
-                className={`snap-center shrink-0 w-[200px] p-3 rounded-xl border flex flex-col justify-between cursor-pointer transition ${
-                  r.id === selectedRouteId ? 'bg-brand-50 border-brand-300 text-brand-950' : 'bg-white border-slate-200 text-slate-700'
-                }`}
-              >
-                <div>
-                  <h4 className="font-bold text-sm truncate">{r.name}</h4>
-                  <p className="text-[10px] opacity-80 mt-1">{r.description || 'Standard Path'}</p>
+            {previewSegment.candidateRoutes.map((r) => {
+              const isSelected = r.id === selectedRouteId;
+              const distText = r.distanceKm ? `${r.distanceKm} km` : r.distanceMeters ? `${(r.distanceMeters / 1000).toFixed(1)} km` : '';
+              const timeText = r.durationMin ? `${r.durationMin} min` : r.durationMinutes ? `${r.durationMinutes} min` : '';
+
+              return (
+                <div
+                  key={r.id}
+                  onClick={() => setSelectedRouteId(r.id)}
+                  className={`snap-center shrink-0 w-[220px] p-3 rounded-2xl border flex flex-col justify-between cursor-pointer transition ${
+                    isSelected
+                      ? 'bg-brand-50 border-brand-400 text-brand-950 ring-2 ring-brand-500/20 shadow-xs'
+                      : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300'
+                  }`}
+                >
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-black px-2 py-0.5 rounded-md bg-white border border-slate-200 shadow-2xs">
+                        Route {r.id}
+                      </span>
+                      {r.stepFree && (
+                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                          ♿ Step-Free
+                        </span>
+                      )}
+                    </div>
+                    <h4 className="font-bold text-xs truncate mt-1">{r.name}</h4>
+                    <p className="text-[10px] text-slate-500 line-clamp-1 mt-0.5">{r.tagline || r.description || 'Verified Route'}</p>
+                  </div>
+                  
+                  <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between">
+                    <span className="text-[10px] font-semibold text-slate-600">
+                      {distText} • {timeText}
+                    </span>
+                    <span className="font-black text-xs text-brand-700">{r.score || 88}★</span>
+                  </div>
                 </div>
-                <div className="mt-3 flex items-center justify-between">
-                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${r.id === selectedRouteId ? 'bg-brand-200 text-brand-800' : 'bg-slate-100'}`}>
-                    {r.durationMinutes} min
-                  </span>
-                  <span className="font-extrabold text-sm">{r.score}★</span>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
