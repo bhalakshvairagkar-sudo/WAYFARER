@@ -16,6 +16,7 @@ import {
 import { submitCommunityReport } from '../../services/api.js';
 import { useJourney } from '../../context/JourneyContext.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
+import { getCurrentGeolocation, GEOLOCATION_STATUS } from '../../utils/geolocationHelper.js';
 
 export default function CommunityReportModal({ isOpen, onClose, defaultResourceId = 'S3', onReportSubmitted }) {
   const { journeyState, triggerEvent } = useJourney();
@@ -34,26 +35,31 @@ export default function CommunityReportModal({ isOpen, onClose, defaultResourceI
   const [errorMsg, setErrorMsg] = useState(null);
   const [submissionResult, setSubmissionResult] = useState(null);
 
-  // Attempt real browser geolocation
+  // Permission-aware browser geolocation
   useEffect(() => {
+    let isMounted = true;
     if (isOpen) {
-      if ('geolocation' in navigator) {
-        navigator.geolocation.getCurrentPosition(
-          (pos) => {
-            setReporterLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-            setLocationStatus(`Verified GPS (${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)})`);
-          },
-          () => {
+      getCurrentGeolocation({ timeout: 4000 })
+        .then((geo) => {
+          if (!isMounted) return;
+          if (geo.success && geo.coords) {
+            setReporterLocation({ lat: geo.coords.lat, lng: geo.coords.lng });
+            setLocationStatus(`Verified GPS (${geo.coords.lat.toFixed(4)}, ${geo.coords.lng.toFixed(4)})`);
+          } else {
             // Default Mumbai Corridor location
             setReporterLocation({ lat: 18.9290, lng: 72.8250 });
-            setLocationStatus('GPS active (Mumbai Corridor default)');
-          },
-          { timeout: 4000 }
-        );
-      } else {
-        setLocationStatus('GPS simulated');
-      }
+            setLocationStatus(geo.status === GEOLOCATION_STATUS.DENIED
+              ? 'GPS access denied (Corridor default used)'
+              : 'GPS active (Mumbai Corridor default)');
+          }
+        })
+        .catch(() => {
+          if (!isMounted) return;
+          setReporterLocation({ lat: 18.9290, lng: 72.8250 });
+          setLocationStatus('GPS active (Mumbai Corridor default)');
+        });
     }
+    return () => { isMounted = false; };
   }, [isOpen]);
 
   if (!isOpen) return null;
@@ -70,6 +76,7 @@ export default function CommunityReportModal({ isOpen, onClose, defaultResourceI
 
     try {
       const payload = {
+        idempotencyKey: `report-${user ? (user.userId || user.id) : 'guest'}-${resourceId}-${eventType}-${Math.floor(Date.now() / 60000)}`,
         resourceId,
         eventType,
         severity: parseFloat(severity),

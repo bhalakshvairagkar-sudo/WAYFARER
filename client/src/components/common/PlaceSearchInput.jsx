@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, MapPin, X, Loader2, Sparkles, Crosshair, Navigation } from 'lucide-react';
+import { Search, MapPin, X, Loader2, Sparkles, Crosshair, Navigation, AlertCircle } from 'lucide-react';
 import { searchPlaces, getPlaceDetails, reverseGeocode } from '../../services/routeService.js';
+import { getCurrentGeolocation, GEOLOCATION_STATUS } from '../../utils/geolocationHelper.js';
 
 export default function PlaceSearchInput({
   label,
@@ -14,7 +15,9 @@ export default function PlaceSearchInput({
   const [suggestions, setSuggestions] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
+  const [locationNotice, setLocationNotice] = useState(null);
   const dropdownRef = useRef(null);
+  const inputRef = useRef(null);
 
   useEffect(() => {
     if (typeof value === 'object' && value?.name) {
@@ -24,36 +27,36 @@ export default function PlaceSearchInput({
     }
   }, [value]);
 
-  const handleUseCurrentLocation = () => {
-    if (typeof window === 'undefined' || !navigator.geolocation) {
-      alert('Geolocation is not supported by your browser.');
-      return;
-    }
+  const handleUseCurrentLocation = async () => {
+    setLocationNotice(null);
     setIsLoading(true);
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        try {
-          const { latitude, longitude } = pos.coords;
-          const loc = await reverseGeocode(latitude, longitude);
-          if (loc) {
-            setInputValue(loc.name);
-            setIsOpen(false);
-            if (onChange) onChange(loc.name);
-            if (onSelectPlace) onSelectPlace(loc);
-          }
-        } catch (err) {
-          console.warn('[PlaceSearchInput] GPS reverse geocode failed:', err);
-        } finally {
-          setIsLoading(false);
+
+    try {
+      const geo = await getCurrentGeolocation({ timeout: 8000 });
+
+      if (geo.success && geo.coords) {
+        const { lat, lng } = geo.coords;
+        const loc = await reverseGeocode(lat, lng);
+        if (loc) {
+          setInputValue(loc.name);
+          setIsOpen(false);
+          if (onChange) onChange(loc.name);
+          if (onSelectPlace) onSelectPlace(loc);
+        } else {
+          setLocationNotice('Could not resolve street name for current GPS coordinates. You can type it manually.');
+          if (inputRef.current) inputRef.current.focus();
         }
-      },
-      (err) => {
-        console.warn('[PlaceSearchInput] GPS error:', err);
-        setIsLoading(false);
-        alert('Could not retrieve current location. Please ensure location access is allowed in your browser.');
-      },
-      { enableHighAccuracy: true, timeout: 8000 }
-    );
+      } else {
+        // Non-blocking permission handling: Keep manual entry completely operational
+        setLocationNotice(geo.error || 'Location access unavailable. You can type your starting location manually.');
+        if (inputRef.current) inputRef.current.focus();
+      }
+    } catch (err) {
+      setLocationNotice('Unable to acquire current location. Manual entry is ready.');
+      if (inputRef.current) inputRef.current.focus();
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // Click outside to close dropdown
@@ -152,6 +155,7 @@ export default function PlaceSearchInput({
       <div className="relative flex items-center">
         <MapPin className="w-4 h-4 text-slate-400 absolute left-3.5 pointer-events-none" />
         <input
+          ref={inputRef}
           type="text"
           value={inputValue}
           onChange={handleInputChange}
@@ -159,6 +163,10 @@ export default function PlaceSearchInput({
             if (suggestions.length > 0) setIsOpen(true);
           }}
           placeholder={placeholder}
+          aria-label={label || placeholder}
+          role="combobox"
+          aria-expanded={isOpen}
+          aria-autocomplete="list"
           className="w-full pl-10 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:bg-white transition"
         />
 
@@ -168,12 +176,31 @@ export default function PlaceSearchInput({
           <button
             type="button"
             onClick={handleClear}
+            aria-label="Clear location input"
             className="absolute right-2.5 p-1 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-200/50 transition"
           >
             <X className="w-3.5 h-3.5" />
           </button>
         ) : null}
       </div>
+
+      {/* Non-blocking Location Status or Permission Notice */}
+      {locationNotice && (
+        <div className="mt-1.5 p-2 bg-amber-50 border border-amber-200/80 rounded-lg text-[11px] text-amber-800 flex items-start justify-between gap-1.5 animate-in fade-in">
+          <div className="flex items-start gap-1.5">
+            <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
+            <span>{locationNotice}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setLocationNotice(null)}
+            aria-label="Dismiss notice"
+            className="text-amber-600 hover:text-amber-800 font-bold px-1"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       {/* Autocomplete Dropdown with Maximum India Locations */}
       {isOpen && (suggestions.length > 0 || !inputValue) && (

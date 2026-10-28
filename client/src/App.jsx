@@ -3,9 +3,11 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import 'leaflet/dist/leaflet.css';
 import { AuthProvider } from './context/AuthContext.jsx';
 import { JourneyProvider } from './context/JourneyContext.jsx';
+import { NetworkStatusProvider } from './context/NetworkStatusContext.jsx';
 import Navbar from './components/Navbar.jsx';
 import MobileBottomNav from './components/common/MobileBottomNav.jsx';
 import WelcomeModal from './components/common/WelcomeModal.jsx';
+import ConnectivityBanner from './components/common/ConnectivityBanner.jsx';
 
 import LandingPageView from './pages/LandingPageView.jsx';
 import ProfilePageView from './pages/ProfilePageView.jsx';
@@ -21,15 +23,19 @@ import SharedLocationPageView from './pages/SharedLocationPageView.jsx';
 export default function App() {
   return (
     <BrowserRouter>
-      <AuthProvider>
-        <JourneyProvider>
-          <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-900 selection:bg-brand-500 selection:text-white pb-16 sm:pb-0">
-            
-            {/* Global Sticky Navbar */}
-            <Navbar />
-            
-            {/* Onboarding Overlay */}
-            <WelcomeModal />
+      <NetworkStatusProvider>
+        <AuthProvider>
+          <JourneyProvider>
+            <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-900 selection:bg-brand-500 selection:text-white pb-16 sm:pb-0">
+              
+              {/* Global Sticky Navbar */}
+              <Navbar />
+
+              {/* Offline & Connectivity Status Banner */}
+              <ConnectivityBanner />
+              
+              {/* Onboarding Overlay */}
+              <WelcomeModal />
 
             {/* Main Route Switcher */}
             <main className="flex-1 overflow-x-hidden relative">
@@ -70,6 +76,7 @@ export default function App() {
           </div>
         </JourneyProvider>
       </AuthProvider>
-    </BrowserRouter>
+    </NetworkStatusProvider>
+  </BrowserRouter>
   );
 }

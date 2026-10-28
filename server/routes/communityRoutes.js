@@ -51,8 +51,12 @@ const CommunityReportSchema = z.object({
   reporterLocation: z.object({
     lat: z.number().min(-90).max(90),
     lng: z.number().min(-180).max(180)
-  }).optional()
+  }).optional(),
+  idempotencyKey: z.string().optional()
 });
+
+// In-memory idempotency cache for reconnection / retry request deduplication
+const reportIdempotencyCache = new Map();
 
 /**
  * POST /api/community/report
@@ -72,6 +76,18 @@ router.post("/report", optionalAuth, async (req, res, next) => {
     const payload = parseResult.data;
     const clientIp = req.ip || req.headers["x-forwarded-for"] || "127.0.0.1";
     const user = req.user;
+    const idempotencyKey = payload.idempotencyKey || req.headers["x-idempotency-key"];
+
+    // Idempotency check: Reconnections must not duplicate reports
+    if (idempotencyKey && reportIdempotencyCache.has(idempotencyKey)) {
+      const cached = reportIdempotencyCache.get(idempotencyKey);
+      securityLogger.info(`[COMMUNITY_IDEMPOTENCY] Replayed duplicate report with key ${idempotencyKey}`);
+      return res.status(200).json({
+        ...cached,
+        idempotencyReplayed: true,
+        message: "Duplicate report submission recognized. Existing report returned without duplicate write."
+      });
+    }
 
     const reportInput = {
       ...payload,
@@ -127,14 +143,24 @@ router.post("/report", optionalAuth, async (req, res, next) => {
       ).catch(err => securityLogger.warn(`[MONGO_INCIDENT_SYNC] ${err.message}`));
     }
 
-    return res.status(201).json({
+    const responsePayload = {
       success: true,
       message: `Report ingested. Lifecycle status: ${result.status}, Triage decision: ${result.decision}`,
       ...result,
       incidentDecision,
       personalImpact,
       journeyAdaptation
-    });
+    };
+
+    if (idempotencyKey) {
+      reportIdempotencyCache.set(idempotencyKey, responsePayload);
+      if (reportIdempotencyCache.size > 1000) {
+        const oldest = reportIdempotencyCache.keys().next().value;
+        reportIdempotencyCache.delete(oldest);
+      }
+    }
+
+    return res.status(201).json(responsePayload);
   } catch (err) {
     next(err);
   }

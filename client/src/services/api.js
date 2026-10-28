@@ -23,6 +23,72 @@ export function clearAuthToken() {
   localStorage.removeItem('wayfarer_user');
 }
 
+export function handleSessionExpiration() {
+  clearAuthToken();
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('wayfarer_session_expired', {
+      detail: { timestamp: new Date().toISOString() }
+    }));
+  }
+}
+
+export function queueOfflineMutation(mutation) {
+  if (typeof window === 'undefined') return;
+  try {
+    const raw = localStorage.getItem('wayfarer_offline_mutations');
+    const queue = raw ? JSON.parse(raw) : [];
+    if (!queue.some(item => item.payload?.idempotencyKey && item.payload.idempotencyKey === mutation.payload?.idempotencyKey)) {
+      queue.push({
+        ...mutation,
+        queuedAt: new Date().toISOString()
+      });
+      localStorage.setItem('wayfarer_offline_mutations', JSON.stringify(queue));
+    }
+  } catch (err) {
+    console.warn('[OfflineQueue] Could not enqueue mutation:', err);
+  }
+}
+
+export async function processOfflineQueue() {
+  if (typeof window === 'undefined' || !navigator.onLine) return;
+  try {
+    const raw = localStorage.getItem('wayfarer_offline_mutations');
+    if (!raw) return;
+    const queue = JSON.parse(raw);
+    if (!Array.isArray(queue) || queue.length === 0) return;
+
+    const remaining = [];
+    for (const item of queue) {
+      try {
+        if (item.type === 'COMMUNITY_REPORT') {
+          await fetch(`${API_BASE}/community/report`, {
+            method: 'POST',
+            headers: getHeaders({ 'X-Idempotency-Key': item.payload.idempotencyKey }),
+            body: JSON.stringify(item.payload)
+          });
+        } else if (item.type === 'JOURNEY_SAVE') {
+          await fetch(`${API_BASE}/journey/save`, {
+            method: 'POST',
+            headers: getHeaders({ 'X-Idempotency-Key': item.payload.idempotencyKey }),
+            body: JSON.stringify(item.payload)
+          });
+        }
+      } catch (e) {
+        remaining.push(item);
+      }
+    }
+    localStorage.setItem('wayfarer_offline_mutations', JSON.stringify(remaining));
+  } catch (err) {
+    console.warn('[OfflineQueue] Error processing queue:', err);
+  }
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('online', () => {
+    processOfflineQueue();
+  });
+}
+
 function getHeaders(customHeaders = {}) {
   const token = getAuthToken();
   const headers = {
@@ -275,16 +341,31 @@ export async function explainJourneyPlan(trip, traveler, segments, overallScore)
 // -------------------------------------------------------------
 
 export async function submitCommunityReport(reportPayload) {
+  const idempotencyKey = reportPayload.idempotencyKey || `rep-${reportPayload.reporterId || 'guest'}-${reportPayload.resourceId || 'S3'}-${Date.now()}`;
+  const payloadWithIdempotency = { ...reportPayload, idempotencyKey };
+
   try {
     const res = await fetch(`${API_BASE}/community/report`, {
       method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify(reportPayload)
+      headers: getHeaders({ 'X-Idempotency-Key': idempotencyKey }),
+      body: JSON.stringify(payloadWithIdempotency)
     });
+    if (res.status === 401) {
+      handleSessionExpiration();
+    }
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Failed to submit report');
     return data;
   } catch (err) {
+    if (typeof window !== 'undefined' && !navigator.onLine) {
+      queueOfflineMutation({ type: 'COMMUNITY_REPORT', payload: payloadWithIdempotency });
+      return {
+        success: true,
+        offline: true,
+        message: 'You are currently offline. Report queued with idempotency protection and will sync upon reconnection.',
+        idempotencyKey
+      };
+    }
     console.error('[API Service] Community report submission error:', err);
     throw err;
   }
@@ -368,21 +449,41 @@ export async function dispatchEmergencyBroadcast(broadcastPayload = {}) {
 }
 
 export async function saveJourney(journeyPayload) {
-  const res = await fetch(`${API_BASE}/journey/save`, {
-    method: 'POST',
-    headers: getHeaders(),
-    body: JSON.stringify(journeyPayload)
-  });
-  const data = await res.json();
-  if (!res.ok) {
-    const error = new Error(data.error || 'Failed to save journey');
-    error.status = res.status;
-    error.code = data.code || 'SAVE_ERROR';
-    error.recoverable = data.recoverable !== false;
-    error.lastValidStateRetained = Boolean(data.lastValidStateRetained);
-    throw error;
+  const idempotencyKey = journeyPayload.idempotencyKey || `save-${journeyPayload._id || journeyPayload.id || Date.now()}-${journeyPayload.version || 1}`;
+  const payloadWithIdempotency = { ...journeyPayload, idempotencyKey };
+
+  try {
+    const res = await fetch(`${API_BASE}/journey/save`, {
+      method: 'POST',
+      headers: getHeaders({ 'X-Idempotency-Key': idempotencyKey }),
+      body: JSON.stringify(payloadWithIdempotency)
+    });
+    if (res.status === 401) {
+      handleSessionExpiration();
+    }
+    const data = await res.json();
+    if (!res.ok) {
+      const error = new Error(data.error || 'Failed to save journey');
+      error.status = res.status;
+      error.code = data.code || 'SAVE_ERROR';
+      error.recoverable = data.recoverable !== false;
+      error.lastValidStateRetained = Boolean(data.lastValidStateRetained);
+      throw error;
+    }
+    return data;
+  } catch (err) {
+    if (typeof window !== 'undefined' && !navigator.onLine) {
+      queueOfflineMutation({ type: 'JOURNEY_SAVE', payload: payloadWithIdempotency });
+      return {
+        success: true,
+        offline: true,
+        dataProvenance: 'LOCAL_OFFLINE_CACHE',
+        message: 'You are offline. Journey saved locally and will sync when network reconnects.',
+        idempotencyKey
+      };
+    }
+    throw err;
   }
-  return data;
 }
 
 export async function fetchJourneyHistory() {

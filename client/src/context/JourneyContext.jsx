@@ -92,6 +92,13 @@ export function JourneyProvider({ children }) {
 
         const defaultData = await fetchDefaultJourney();
         if (defaultData && defaultData.segments) {
+          try {
+            localStorage.setItem('wayfarer_last_journey_cache', JSON.stringify({
+              journey: defaultData,
+              cachedAt: new Date().toISOString()
+            }));
+          } catch (_) {}
+
           setJourneyState((prev) => ({
             ...prev,
             ...defaultData,
@@ -100,9 +107,45 @@ export function JourneyProvider({ children }) {
           if (defaultData.segments?.length > 0) {
             setActiveSegmentId(defaultData.segments[0].id);
           }
+        } else {
+          // Check local offline cache if backend default is unreachable
+          try {
+            const rawCache = localStorage.getItem('wayfarer_last_journey_cache');
+            if (rawCache) {
+              const parsed = JSON.parse(rawCache);
+              if (parsed?.journey?.segments) {
+                setJourneyState({
+                  ...parsed.journey,
+                  isStale: true,
+                  dataProvenance: 'LOCAL_OFFLINE_CACHE',
+                  cachedAt: parsed.cachedAt
+                });
+                if (parsed.journey.segments?.length > 0) {
+                  setActiveSegmentId(parsed.journey.segments[0].id);
+                }
+              }
+            }
+          } catch (_) {}
         }
       } catch (err) {
-        console.warn('[JourneyContext] Baseline initialization error, using local mock data:', err.message);
+        console.warn('[JourneyContext] Baseline initialization error, attempting local offline cache:', err.message);
+        try {
+          const rawCache = localStorage.getItem('wayfarer_last_journey_cache');
+          if (rawCache) {
+            const parsed = JSON.parse(rawCache);
+            if (parsed?.journey?.segments) {
+              setJourneyState({
+                ...parsed.journey,
+                isStale: true,
+                dataProvenance: 'LOCAL_OFFLINE_CACHE',
+                cachedAt: parsed.cachedAt
+              });
+              if (parsed.journey.segments?.length > 0) {
+                setActiveSegmentId(parsed.journey.segments[0].id);
+              }
+            }
+          }
+        } catch (_) {}
       }
     }
     init();
@@ -405,12 +448,17 @@ export function JourneyProvider({ children }) {
     }
   };
 
-  // 7. Save current active journey to persistent storage (MongoDB)
+  // 7. Save current active journey to persistent storage (MongoDB with Idempotency)
   const saveCurrentJourney = async () => {
     setIsLoading(true);
     setError(null);
     try {
+      const journeyId = journeyState._id || journeyState.id || 'draft-journey';
+      const version = journeyState.version || 1;
+      const idempotencyKey = `save-${journeyId}-v${version}-${journeyState.segments?.[0]?.recommendedRouteId || 'std'}`;
+
       const payload = {
+        idempotencyKey,
         trip: journeyState.trip,
         traveler: journeyState.traveler,
         stops: journeyState.stops,
@@ -418,8 +466,19 @@ export function JourneyProvider({ children }) {
         overallScore: journeyState.overallScore,
         fitLevel: journeyState.fitLevel,
         journeyHealth: journeyState.journeyHealth,
-        eventHistory: journeyState.eventHistory
+        eventHistory: journeyState.eventHistory,
+        version,
+        lifecycleState: journeyState.lifecycleState || 'ACTIVE'
       };
+
+      // Also persist to local offline cache immediately
+      try {
+        localStorage.setItem('wayfarer_last_journey_cache', JSON.stringify({
+          journey: { ...journeyState, ...payload },
+          cachedAt: new Date().toISOString()
+        }));
+      } catch (_) {}
+
       const res = await saveJourney(payload);
       return res;
     } catch (err) {

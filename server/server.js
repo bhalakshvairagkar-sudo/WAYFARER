@@ -388,12 +388,25 @@ app.post("/api/notifications/preferences", optionalAuth, async (req, res) => {
   }
 });
 
-// 13. Save Journey to MongoDB
+// 13. Save Journey to MongoDB (Idempotency Protected)
+const journeySaveIdempotencyCache = new Map();
+
 app.post("/api/journey/save", optionalAuth, async (req, res, next) => {
   try {
     const { trip, traveler, stops, segments, overallScore, fitLevel, journeyHealth, eventHistory } = req.body;
     if (!trip || !stops) {
       return res.status(400).json({ success: false, error: "Trip details and stops are required to save a journey." });
+    }
+
+    const idempotencyKey = req.body.idempotencyKey || req.headers["x-idempotency-key"];
+    if (idempotencyKey && journeySaveIdempotencyCache.has(idempotencyKey)) {
+      const cached = journeySaveIdempotencyCache.get(idempotencyKey);
+      securityLogger.info(`[JOURNEY_IDEMPOTENCY] Replayed duplicate save with key ${idempotencyKey}`);
+      return res.status(200).json({
+        ...cached,
+        idempotencyReplayed: true,
+        message: "Duplicate journey save recognized. Existing journey record returned without duplicate write."
+      });
     }
 
     const userId = req.user ? req.user.id || req.user.userId : "guest-traveler";
@@ -417,7 +430,7 @@ app.post("/api/journey/save", optionalAuth, async (req, res, next) => {
       });
       await journey.save();
       inMemoryStore.journeys.set(String(journey._id), journey);
-      return res.status(201).json({
+      const successPayload = {
         success: true,
         message: "Journey saved to MongoDB successfully",
         journeyId: journey._id,
@@ -425,7 +438,15 @@ app.post("/api/journey/save", optionalAuth, async (req, res, next) => {
         dataProvenance: "PERSISTENT_MONGODB",
         isSimulation: false,
         timestamp: new Date().toISOString()
-      });
+      };
+      if (idempotencyKey) {
+        journeySaveIdempotencyCache.set(idempotencyKey, successPayload);
+        if (journeySaveIdempotencyCache.size > 500) {
+          const oldest = journeySaveIdempotencyCache.keys().next().value;
+          journeySaveIdempotencyCache.delete(oldest);
+        }
+      }
+      return res.status(201).json(successPayload);
     } else {
       // In-memory demo store registration
       const journeyId = `demo-${Date.now()}`;
@@ -452,7 +473,7 @@ app.post("/api/journey/save", optionalAuth, async (req, res, next) => {
 
       // In compliance with Foundation P0: Explicit provenance flag when database is offline
       if (req.body.allowDemoStore) {
-        return res.status(201).json({
+        const demoPayload = {
           success: true,
           message: "Journey registered in demo memory store",
           journeyId,
@@ -460,7 +481,11 @@ app.post("/api/journey/save", optionalAuth, async (req, res, next) => {
           dataProvenance: "IN_MEMORY_DEMO",
           isSimulation: false,
           timestamp: new Date().toISOString()
-        });
+        };
+        if (idempotencyKey) {
+          journeySaveIdempotencyCache.set(idempotencyKey, demoPayload);
+        }
+        return res.status(201).json(demoPayload);
       }
 
       return res.status(503).json({
