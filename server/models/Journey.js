@@ -75,6 +75,19 @@ const JourneySchema = new mongoose.Schema(
     eventHistory: {
       type: Array,
       default: []
+    },
+    version: {
+      type: Number,
+      default: 1
+    },
+    lifecycleState: {
+      type: String,
+      default: 'ACTIVE',
+      enum: ['ACTIVE', 'RECALCULATING', 'PROPOSED', 'ACCEPTED', 'FAILED_NO_SAFE_ALTERNATIVE']
+    },
+    routeTransitions: {
+      type: Array,
+      default: []
     }
   },
   {

@@ -38,6 +38,7 @@ import {
   generateWhyNotExplanation
 } from "./engine/scoringEngine.js";
 import { applyJourneyEvent } from "./engine/eventEngine.js";
+import { processEventAndReroute, ROUTE_LIFECYCLE } from "./engine/reroutingEngine.js";
 import { checkDownstreamImpact } from "./engine/downstreamOptimizer.js";
 import { generatePlanExplanation, generateAdaptationExplanation } from "./engine/explanationEngine.js";
 import { calculateJourneyHealth } from "./engine/journeyHealthEngine.js";
@@ -312,75 +313,31 @@ app.post("/api/journey/explain-plan", aiRateLimiter, optionalAuth, async (req, r
   }
 });
 
-// 12. Apply Dynamic Event (Resilience Engine)
+// 12. Apply Dynamic Event (Resilience & Event-Driven Rerouting Engine v2.0)
 app.post("/api/journey/event", optionalAuth, async (req, res, next) => {
   try {
-    const { journeyState, event } = req.body;
+    const { journeyState, event, baseVersion, autoCommit } = req.body;
 
     if (!journeyState || !event) {
       return res.status(400).json({ success: false, error: "Missing journeyState or event payload." });
     }
 
-    const weights = deriveTravelerWeights(journeyState.traveler || DEFAULT_TRAVELER);
+    const rerouteResult = await processEventAndReroute({
+      journeyState,
+      event,
+      baseVersion,
+      autoCommit: autoCommit !== false
+    });
 
-    // 1. Apply event mutation and recalculate affected segment
-    const eventResult = applyJourneyEvent(journeyState, event);
-
-    // 2. Check downstream cascade impact
-    const downstreamResult = checkDownstreamImpact(
-      eventResult.updatedSegments,
-      event.segmentId || journeyState.segments?.[0]?.id || "S1",
-      eventResult.eventRecord,
-      journeyState.stops || DEFAULT_STOPS,
-      eventResult.graphImpact || null
-    );
-
-    // 3. Recalculate Overall Journey Score
-    const newScoreResult = calculateOverallJourneyScore(eventResult.updatedSegments);
-
-    // 4. Generate AI explanation for the adaptation
-    const newRecRoute = eventResult.affectedSegment.candidateRoutes?.find(r => r.isRecommended);
-    const explanationResult = await generateAdaptationExplanation(
-      eventResult.eventRecord,
-      eventResult.affectedSegment,
-      newRecRoute,
-      journeyState.traveler || DEFAULT_TRAVELER,
-      downstreamResult
-    );
-
-    // 5. Generate transparent score breakdown and comparative why-not
-    let scoreBreakdown = null;
-    let whyNotData = null;
-    if (eventResult.affectedSegment && eventResult.affectedSegment.candidateRoutes) {
-      scoreBreakdown = generateScoreBreakdown(eventResult.affectedSegment.candidateRoutes, weights);
-      whyNotData = generateWhyNotExplanation(eventResult.affectedSegment.candidateRoutes, weights, journeyState.traveler || DEFAULT_TRAVELER);
+    if (rerouteResult.conflict) {
+      return res.status(409).json(rerouteResult);
     }
 
-    // 6. Recalculate Journey Health
-    const journeyHealth = calculateJourneyHealth({
-      segments: eventResult.updatedSegments,
-      downstreamImpact: downstreamResult,
-      eventRecord: eventResult.eventRecord
-    });
+    if (rerouteResult.lifecycleState === ROUTE_LIFECYCLE.FAILED_NO_SAFE_ALTERNATIVE) {
+      return res.status(422).json(rerouteResult);
+    }
 
-    res.json({
-      success: true,
-      segments: eventResult.updatedSegments,
-      affectedSegment: eventResult.affectedSegment,
-      eventRecord: eventResult.eventRecord,
-      downstreamImpact: downstreamResult,
-      graphImpact: eventResult.graphImpact || null,
-      overallScore: newScoreResult.overallScore,
-      fitLevel: newScoreResult.fitLevel,
-      dayScores: newScoreResult.dayScores,
-      journeyHealth,
-      explanation: explanationResult.explanation,
-      explanationSource: explanationResult.source,
-      explanationBadge: explanationResult.badge,
-      structuredChange: explanationResult.structuredChange || null,
-      scoreBreakdown,
-      whyNotData
-    });
+    res.json(rerouteResult);
   } catch (err) {
     next(err);
   }
