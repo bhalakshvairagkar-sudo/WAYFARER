@@ -19,10 +19,11 @@ import {
   computeCorridorSurfaceState,
   evaluateTravelerWeatherImpact,
   modelHospitalityAndAttractionImpacts,
-  buildCascadingEffectDAG
+  buildCascadingEffectDAG,
+  computeSegmentWeatherImpact
 } from "./weatherImpactEngine.js";
 import { calculateJourneyHealth } from "./journeyHealthEngine.js";
-import { rankSegmentRoutes, deriveTravelerWeights } from "./scoringEngine.js";
+import { rankSegmentRoutes, deriveTravelerWeights, applyWeatherEvidenceToRoute } from "./scoringEngine.js";
 import { DEFAULT_TRIP, DEFAULT_TRAVELER, DEFAULT_STOPS } from "../data/defaultJourney.js";
 import { segmentJourney } from "./journeySegmenter.js";
 import { predictDomainImpact, normalizeNugenInput } from "../services/nugenWayfarerModel.js";
@@ -156,31 +157,32 @@ export async function buildDigitalTwinState(options = {}) {
   // 5. Build Cascading Effect DAG
   const cascadingEffects = buildCascadingEffectDAG(weatherState, surfaceState, travelerImpact);
 
-  // 6. Evaluate Segment & Route Weather Vulnerability
-  const evaluatedSegments = segments.map((seg, idx) => {
-    const segSurface = computeCorridorSurfaceState(weatherState, seg.id, 1.5);
+  // 6. Evaluate Segment & Route Weather Vulnerability using Evidence-Driven Mapping
+  const evaluatedSegments = segments.map((seg) => {
+    const segImpact = computeSegmentWeatherImpact({
+      segment: seg,
+      weatherState,
+      groundReports: socialSignals,
+      traveler
+    });
+
     const baseDurationMin = seg.durationMin || 20;
-    const weatherAdjustedDurationMin = Math.round(baseDurationMin * segSurface.trafficSlowdownMultiplier);
+    const slowdown = segImpact.travelTimeImpact?.trafficSlowdownMultiplier || 1.0;
+    const weatherAdjustedDurationMin = Math.round(baseDurationMin * slowdown);
 
     return {
       id: seg.id,
       from: seg.from,
       to: seg.to,
-      surfaceWetness: segSurface.surfaceWetness,
-      waterAccumulationMm: segSurface.waterAccumulationMm,
-      floodProbability: segSurface.floodProbability,
-      trafficSlowdownMultiplier: segSurface.trafficSlowdownMultiplier,
+      surfaceWetness: segImpact.surfaceState?.surfaceWetness || "DRY",
+      waterAccumulationMm: segImpact.surfaceState?.waterAccumulationMm || 0,
+      floodProbability: segImpact.routeRisk?.riskScore ?? (segImpact.surfaceState?.floodProbability || 0),
+      trafficSlowdownMultiplier: slowdown,
       baseDurationMin,
       weatherAdjustedDurationMin,
+      weatherImpact: segImpact,
       candidateRoutes: (seg.candidateRoutes || []).map(route => {
-        // Adjust individual route score based on sheltered vs exposed attributes
-        const isExposed = route.elevationMeters == null || route.elevationMeters < 5;
-        const weatherPenalty = (segSurface.floodProbability > 40 && isExposed) ? 25 : 5;
-        return {
-          ...route,
-          weatherRiskScore: Math.min(100, Math.round(segSurface.floodProbability * (isExposed ? 1.0 : 0.4))),
-          weatherAdjustedScore: Math.max(10, Math.round((route.score || 80) - weatherPenalty))
-        };
+        return applyWeatherEvidenceToRoute(route, segImpact);
       })
     };
   });
@@ -308,16 +310,19 @@ export async function buildDigitalTwinState(options = {}) {
  * @returns {Promise<Object>} Comparative simulation results (Current vs What-If vs Adapted)
  */
 export async function runWhatIfSimulation(journeyState = {}, whatIfParams = {}) {
+  // STRICT ISOLATION GUARANTEE: Deep clone the input journey to ensure simulation NEVER mutates live state
+  const isolatedJourney = JSON.parse(JSON.stringify(journeyState || {}));
+
   // 1. Generate Baseline Live Twin State
   const liveTwin = await buildDigitalTwinState({
-    journeyState,
+    journeyState: isolatedJourney,
     simulationMode: false
   });
 
   // 2. Generate Simulated Counterfactual Twin State
   const simulatedWeather = generateSimulatedWeather(whatIfParams);
   const simulatedTwin = await buildDigitalTwinState({
-    journeyState,
+    journeyState: JSON.parse(JSON.stringify(isolatedJourney)),
     weather: simulatedWeather,
     simulationMode: true,
     simulationParams: whatIfParams
@@ -325,8 +330,8 @@ export async function runWhatIfSimulation(journeyState = {}, whatIfParams = {}) 
 
   // 3. Simulate AI Route Adaptation (Counterfactual Recovery)
   // If simulated scenario caused health degradation, model what happens when Route C is promoted
-  const weights = deriveTravelerWeights(journeyState.traveler || DEFAULT_TRAVELER);
-  const adaptedSegments = (journeyState.segments || []).map(seg => {
+  const weights = deriveTravelerWeights(isolatedJourney.traveler || DEFAULT_TRAVELER);
+  const adaptedSegments = (isolatedJourney.segments || []).map(seg => {
     const candidateRoutes = (seg.candidateRoutes || []).map(r => {
       // Route C / Inland elevated route maintains high accessibility and sheltered path
       if (r.id === "route-c" || r.elevationMeters > 8 || (r.accessibleFeatures || []).length > 2) {

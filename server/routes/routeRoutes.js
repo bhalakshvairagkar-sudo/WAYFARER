@@ -62,7 +62,8 @@ router.post('/calculate', optionalAuth, async (req, res, next) => {
       destination,
       waypoints,
       travelMode,
-      traveler: req.user?.travelerProfile ? { ...traveler, ...req.user.travelerProfile } : traveler
+      traveler: req.user?.travelerProfile ? { ...traveler, ...req.user.travelerProfile } : traveler,
+      weatherImpact: req.body?.weatherImpact || null
     });
 
     if (!result.success) {

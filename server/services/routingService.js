@@ -7,7 +7,7 @@
  */
 
 import { securityLogger } from '../utils/securityLogger.js';
-import { deriveTravelerWeights } from '../engine/scoringEngine.js';
+import { deriveTravelerWeights, applyWeatherEvidenceToRoute } from '../engine/scoringEngine.js';
 
 // Route cache with 1-hour TTL
 const routeCache = new Map();
@@ -207,14 +207,14 @@ async function queryOsrmRouting(origin, destination, waypoints = [], mode = 'wal
 }
 
 /**
- * Enriches raw provider routes with 5-factor scoring and accessibility metrics
+ * Enriches raw provider routes with 5-factor scoring, accessibility metrics, and weather evaluation
  */
-function enrichRoutesWithScoring(routes, traveler = {}) {
+function enrichRoutesWithScoring(routes, traveler = {}, weatherImpact = null) {
   const weights = deriveTravelerWeights(traveler);
   const isWheelchair = traveler.mobility === 'wheelchair' || traveler.stairsAllowed === false;
   const isSenior = traveler.mobility === 'elderly' || traveler.mobility === 'senior';
 
-  return routes.map((r, idx) => {
+  const scored = routes.map((r, idx) => {
     let safety = idx === 0 ? 92 : idx === 1 ? 88 : 80;
     let accessibility = idx === 0 ? 95 : idx === 1 ? 90 : 65;
     let crowd = idx === 0 ? 84 : idx === 1 ? 88 : 70;
@@ -248,6 +248,8 @@ function enrichRoutesWithScoring(routes, traveler = {}) {
       hasStairs: isWheelchair && idx === 2
     };
   });
+
+  return scored.map(r => applyWeatherEvidenceToRoute(r, weatherImpact, weights));
 }
 
 /**
@@ -265,7 +267,8 @@ export async function calculateProductionRoute({
   destination,
   waypoints = [],
   travelMode = 'walking',
-  traveler = {}
+  traveler = {},
+  weatherImpact = null
 }) {
   // 1. Strict coordinate validation
   if (!origin || !destination) {
@@ -318,7 +321,7 @@ export async function calculateProductionRoute({
   const cached = routeCache.get(cacheKey);
   const now = Date.now();
   if (cached && now - cached.timestamp < CACHE_TTL_MS) {
-    const scoredCachedRoutes = enrichRoutesWithScoring(cached.routes, traveler);
+    const scoredCachedRoutes = enrichRoutesWithScoring(cached.routes, traveler, weatherImpact);
     return {
       success: true,
       status: 'OK',
@@ -362,8 +365,8 @@ export async function calculateProductionRoute({
     timestamp: now
   });
 
-  // Enrich with 5-factor scoring
-  const enrichedRoutes = enrichRoutesWithScoring(rawRoutes, traveler);
+  // Enrich with 5-factor scoring & weather evaluation
+  const enrichedRoutes = enrichRoutesWithScoring(rawRoutes, traveler, weatherImpact);
 
   return {
     success: true,

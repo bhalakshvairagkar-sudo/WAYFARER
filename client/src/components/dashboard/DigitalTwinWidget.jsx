@@ -176,6 +176,29 @@ export default function DigitalTwinWidget({
               <span>{weather.condition}</span>
               <span className="text-indigo-300 font-medium text-sm">({weather.temperature}°C)</span>
             </h3>
+            <div className="flex flex-wrap items-center gap-2 mt-1">
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                weather.freshnessStatus === 'STALE' ? 'bg-amber-400/20 text-amber-300 border border-amber-400/30' :
+                weather.freshnessStatus === 'DEGRADED_STALE' ? 'bg-orange-500/20 text-orange-300 border border-orange-500/30' :
+                'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+              }`}>
+                {weather.freshnessStatus || 'FRESH'} • {weather.source || 'Open-Meteo'}
+              </span>
+              {weather.forecastHorizonHours > 0 && (
+                <span className="text-[10px] text-slate-300 bg-white/10 px-2 py-0.5 rounded">
+                  {weather.forecastHorizonHours}h Horizon
+                </span>
+              )}
+              {currentTwin?.routes?.[0]?.weatherImpact?.isConfirmedHazard ? (
+                <span className="text-[10px] font-black text-rose-300 bg-rose-500/20 border border-rose-500/30 px-2 py-0.5 rounded">
+                  ⚠️ Corroborated Ground Hazard
+                </span>
+              ) : (
+                <span className="text-[10px] text-slate-400 italic">
+                  Forecast projection — Not a confirmed road hazard
+                </span>
+              )}
+            </div>
           </div>
 
           <div className="flex items-center gap-2">

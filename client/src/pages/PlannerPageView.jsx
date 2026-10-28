@@ -391,6 +391,15 @@ export default function PlannerPageView() {
                           ♿ Step-Free
                         </span>
                       )}
+                      {r.weatherEvaluation?.evaluated && (
+                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${
+                          r.weatherEvaluation.isConfirmedHazard
+                            ? 'text-rose-700 bg-rose-50 border-rose-200'
+                            : 'text-amber-700 bg-amber-50 border-amber-200'
+                        }`}>
+                          {r.weatherEvaluation.isConfirmedHazard ? '⚠️ Hazard' : '🌤️ Advisory'}
+                        </span>
+                      )}
                     </div>
                     <h4 className="font-bold text-xs truncate mt-1">{r.name}</h4>
                     <p className="text-[10px] text-slate-500 line-clamp-1 mt-0.5">{r.tagline || r.description || 'Verified Route'}</p>

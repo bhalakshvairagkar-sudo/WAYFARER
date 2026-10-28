@@ -49,6 +49,23 @@ export const SPATIAL_CORRIDORS = {
  */
 export function computeCorridorSurfaceState(weather, segmentId = "S1", durationHours = 1) {
   const corridor = SPATIAL_CORRIDORS[segmentId] || SPATIAL_CORRIDORS["S1"];
+
+  if (!weather || weather.provenance === "UNAVAILABLE") {
+    return {
+      segmentId,
+      corridorName: corridor.name,
+      surfaceWetness: "UNKNOWN",
+      waterAccumulationMm: null,
+      floodProbability: null,
+      roadFrictionFactor: 1.0,
+      trafficSlowdownMultiplier: 1.0,
+      coastalExposure: corridor.coastalExposure,
+      coveredFootpathPct: corridor.coveredFootpathPct,
+      evaluated: false,
+      isConfirmedHazard: false
+    };
+  }
+
   const rainMmPerHour = Number(weather.precipitation ?? 0);
   const totalRainMm = rainMmPerHour * Math.max(0.5, durationHours);
 
@@ -79,6 +96,10 @@ export function computeCorridorSurfaceState(weather, segmentId = "S1", durationH
   if (surfaceWetness === "WATERLOGGED") trafficSlowdownMultiplier = 1.65;
   if (surfaceWetness === "FLOODED") trafficSlowdownMultiplier = 2.25;
 
+  const isConfirmedHazard = Boolean(
+    (waterAccumulationMm >= 35 && corridor.elevation.includes("LOW") && corridor.drainageEfficiency <= 0.60)
+  );
+
   return {
     segmentId,
     corridorName: corridor.name,
@@ -88,7 +109,9 @@ export function computeCorridorSurfaceState(weather, segmentId = "S1", durationH
     roadFrictionFactor,
     trafficSlowdownMultiplier,
     coastalExposure: corridor.coastalExposure,
-    coveredFootpathPct: corridor.coveredFootpathPct
+    coveredFootpathPct: corridor.coveredFootpathPct,
+    evaluated: true,
+    isConfirmedHazard
   };
 }
 
@@ -114,6 +137,19 @@ export function evaluateTravelerWeatherImpact(traveler = {}, surfaceState = {}, 
   const specialNeeds = Array.isArray(traveler.specialNeeds) ? traveler.specialNeeds : [];
   const isWheelchair = mobility.includes("wheelchair") || specialNeeds.includes("wheelchair");
   const isSenior = mobility.includes("senior") || mobility.includes("limited_walking") || (traveler.age && traveler.age >= 65);
+
+  // Missing or unassessed weather: Do NOT invent score drops
+  if (surfaceState.floodProbability === null || !weather || weather.provenance === "UNAVAILABLE") {
+    return {
+      travelerName: traveler.name || "Traveler",
+      mobilityType: isWheelchair ? "Wheelchair User" : isSenior ? "Senior / Limited Mobility" : "Standard Traveler",
+      vulnerabilityLevel: "UNASSESSED",
+      accessibilityImpact: 0,
+      safetyScoreDrop: 0,
+      recommendedAction: "MONITOR",
+      advisoryMessage: "Weather data unavailable. Vulnerability unassessed; standard baseline routing active."
+    };
+  }
 
   let vulnerabilityLevel = "LOW";
   let accessibilityImpact = 0.05; // 0.0 to 1.0 degradation
@@ -336,4 +372,197 @@ export function buildCascadingEffectDAG(weather = {}, surfaceState = {}, travele
   ];
 
   return nodes;
+}
+
+/**
+ * Maps relevant weather conditions to an affected route segment where sufficient geospatial data exists,
+ * estimating travel time impact and route risk with uncertainty clearly represented.
+ * 
+ * Strict policy:
+ * - If weather data is MISSING or UNAVAILABLE: riskScore is STRICTLY null, no risk score is invented.
+ * - If weather data is STALE: labeled stale, confidence halved, uncertainty band widened.
+ * - If CONTRADICTION detected between atmospheric provider and ground reports: flagged with wide uncertainty.
+ * - A forecast alone is NEVER presented as a confirmed road hazard.
+ * 
+ * @param {Object} params
+ * @param {Object} params.segment Route segment { id, from, to, durationMin, distanceKm, coordinates }
+ * @param {Object} params.weatherState Normalized weather state from weatherProvider
+ * @param {Array} [params.groundReports=[]] Real-world corroborated incident signals
+ * @param {Object} [params.traveler={}] Traveler mobility profile
+ * @returns {Object} Segment-level impact analysis
+ */
+export function computeSegmentWeatherImpact({
+  segment = {},
+  weatherState = null,
+  groundReports = [],
+  traveler = {}
+} = {}) {
+  const segmentId = segment.id || "S1";
+  const segmentName = `${segment.from || "Origin"} → ${segment.to || "Destination"}`;
+
+  // 1. Missing or Unavailable Weather Data Policy
+  if (!weatherState || weatherState.provenance === "UNAVAILABLE" || weatherState.freshnessStatus === "MISSING") {
+    return {
+      segmentId,
+      segmentName,
+      weatherAvailable: false,
+      evaluated: false,
+      evidenceProvenance: "DATA_UNAVAILABLE",
+      isConfirmedHazard: false,
+      hazardClassification: "NONE",
+      travelTimeImpact: {
+        estimatedDelayMinutes: 0,
+        delayRange: [0, 0],
+        trafficSlowdownMultiplier: 1.0,
+        confidence: 0
+      },
+      routeRisk: {
+        riskScore: null, // STRICTLY NULL! No invented risk score!
+        uncertaintyBand: { minRisk: null, maxRisk: null, confidence: 0 },
+        uncertaintyReason: "Missing weather data: No risk score fabricated."
+      },
+      validityWindow: null,
+      message: "No meteorological data available for this segment — cannot assess weather risk without evidence."
+    };
+  }
+
+  // 2. Freshness Evaluation
+  const isStale = Boolean(
+    weatherState.stale || 
+    weatherState.freshnessStatus === "STALE" || 
+    weatherState.freshnessStatus === "EXPIRED" ||
+    weatherState.freshnessStatus === "DEGRADED_STALE"
+  );
+
+  // 3. Ground Reports Corroboration & Contradiction Detection
+  const corridorReports = (groundReports || []).filter(r => {
+    if (r.location?.corridorId && r.location.corridorId === segmentId) return true;
+    if (r.segmentId && r.segmentId === segmentId) return true;
+    if (r.corridorId && r.corridorId === segmentId) return true;
+    return false;
+  });
+
+  const verifiedSevereReports = corridorReports.filter(r => 
+    (r.trustShield?.actionConfidence >= 0.70 || r.confidence >= 0.70) &&
+    (r.type === "FLOOD" || r.type === "WATERLOGGING" || r.eventType === "FLOOD_RISK")
+  );
+
+  const atmosphericPrecipitation = Number(weatherState.precipitation ?? 0);
+  const atmosphericSaysDry = atmosphericPrecipitation <= 0.1 && !weatherState.isRaining;
+  const groundSaysFlooded = verifiedSevereReports.length > 0;
+
+  const contradictionDetected = (atmosphericSaysDry && groundSaysFlooded) || 
+    (weatherState.rainIntensity === "TORRENTIAL" && corridorReports.some(r => r.details?.includes("Bone dry")));
+
+  // 4. Physical Surface Calculation
+  const surfaceState = computeCorridorSurfaceState(weatherState, segmentId);
+  const baseDurationMin = segment.durationMin || 20;
+  const slowdown = surfaceState.trafficSlowdownMultiplier || 1.0;
+  const estimatedDelayMinutes = Math.round(baseDurationMin * (slowdown - 1.0));
+
+  // 5. Critical Distinction: Confirmed Hazard vs Pure Forecast
+  // A weather forecast or precipitation alone is NOT a confirmed road hazard!
+  // Road hazards require corroborated ground reports or calibrated drainage saturation.
+  const hasGroundCorroboration = groundSaysFlooded;
+  const hasCalibratedBasinFlood = surfaceState.surfaceWetness === "FLOODED" && (surfaceState.waterAccumulationMm || 0) >= 35;
+  const isConfirmedHazard = hasGroundCorroboration || hasCalibratedBasinFlood;
+
+  let hazardClassification = "NONE";
+  if (isConfirmedHazard) {
+    hazardClassification = "CONFIRMED_HAZARD";
+  } else if (surfaceState.surfaceWetness === "WATERLOGGED" || weatherState.rainIntensity === "HEAVY") {
+    hazardClassification = "WARNING";
+  } else if (surfaceState.surfaceWetness === "DAMP" || weatherState.isRaining) {
+    hazardClassification = "ADVISORY";
+  }
+
+  // 6. Evidence Provenance & Uncertainty Modeling
+  let evidenceProvenance = "LIVE_OBSERVATION";
+  if (weatherState.provenance === "SIMULATED") {
+    evidenceProvenance = "SIMULATED_SCENARIO";
+  } else if (contradictionDetected) {
+    evidenceProvenance = "CONTRADICTION";
+  } else if (isConfirmedHazard && hasGroundCorroboration) {
+    evidenceProvenance = "GROUND_CORROBORATED";
+  } else if (weatherState.hourlyForecast?.length > 0 && !isConfirmedHazard) {
+    evidenceProvenance = "FORECAST_PROJECTION";
+  }
+
+  // Calculate Risk Score & Bounded Uncertainty Band
+  const baseFloodRisk = surfaceState.floodProbability ?? 10;
+  let riskScore = Math.min(100, Math.max(0, baseFloodRisk));
+
+  let confidence = 0.85;
+  let uncertaintyBand = {
+    minRisk: Math.max(0, riskScore - 10),
+    maxRisk: Math.min(100, riskScore + 10),
+    confidence
+  };
+  let uncertaintyReason = "Calibrated atmospheric observation with local drainage modeling.";
+
+  if (contradictionDetected) {
+    confidence = 0.35;
+    uncertaintyBand = { minRisk: 15, maxRisk: 85, confidence };
+    uncertaintyReason = "Contradiction detected: Atmospheric API reports clear/dry while ground reports indicate standing water. Maximum uncertainty applied.";
+  } else if (isStale) {
+    confidence = Number((confidence * 0.5).toFixed(2));
+    uncertaintyBand = {
+      minRisk: Math.max(0, riskScore - 20),
+      maxRisk: Math.min(100, riskScore + 25),
+      confidence
+    };
+    uncertaintyReason = "Weather observation is stale (>60m old); wide uncertainty band applied per policy.";
+  } else if (isConfirmedHazard) {
+    confidence = 0.94;
+    uncertaintyBand = {
+      minRisk: Math.max(0, riskScore - 4),
+      maxRisk: Math.min(100, riskScore + 4),
+      confidence
+    };
+    uncertaintyReason = "Hazard confirmed via multi-source ground evidence fusion.";
+  } else if (!isConfirmedHazard && weatherState.hourlyForecast?.length > 0) {
+    confidence = 0.65;
+    uncertaintyBand = {
+      minRisk: Math.max(0, riskScore - 15),
+      maxRisk: Math.min(100, riskScore + 15),
+      confidence
+    };
+    uncertaintyReason = "Forecast projection only; not corroborated as confirmed ground passability hazard.";
+  }
+
+  // Delay Range based on uncertainty
+  const delayMin = Math.max(0, Math.round(estimatedDelayMinutes * (isStale ? 0.5 : 0.8)));
+  const delayMax = Math.round(estimatedDelayMinutes * (isStale ? 1.8 : 1.3)) + (isStale ? 3 : 0);
+
+  return {
+    segmentId,
+    segmentName,
+    weatherAvailable: true,
+    evaluated: true,
+    evidenceProvenance,
+    isConfirmedHazard,
+    hazardClassification,
+    contradictionDetected,
+    freshnessStatus: weatherState.freshnessStatus || (isStale ? "STALE" : "FRESH"),
+    stale: isStale,
+    validityWindow: weatherState.validityWindow || {
+      validFrom: weatherState.retrievalTimestamp || new Date().toISOString(),
+      validUntil: new Date(Date.now() + 60 * 60 * 1000).toISOString()
+    },
+    travelTimeImpact: {
+      estimatedDelayMinutes,
+      delayRange: [delayMin, delayMax],
+      trafficSlowdownMultiplier: slowdown,
+      confidence
+    },
+    routeRisk: {
+      riskScore,
+      uncertaintyBand,
+      uncertaintyReason
+    },
+    surfaceState,
+    advisory: isConfirmedHazard
+      ? `CONFIRMED ROAD HAZARD: Corridor ${segmentName} affected by verified surface water.`
+      : `Weather Advisory: ${weatherState.condition || "Precipitation"} modeled along corridor. Not a confirmed road closure.`
+  };
 }

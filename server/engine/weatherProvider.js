@@ -85,27 +85,59 @@ export function normalizeWeatherData(raw = {}, provenance = "LIVE") {
       const w = WMO_CODE_TABLE[code] || { label: "Clear", rainIntensity: "NONE" };
       hourlyForecast.push({
         time: raw.hourly.time[i],
+        forecastHourOffset: i + 1,
         temperature: Number(raw.hourly.temperature_2m?.[i] ?? temperature),
         precipitation: Number(raw.hourly.precipitation?.[i] ?? 0),
         precipitationProbability: Number(raw.hourly.precipitation_probability?.[i] ?? 10),
         weatherCode: code,
         condition: w.label,
-        rainIntensity: classifyRainIntensity(raw.hourly.precipitation?.[i] ?? 0)
+        rainIntensity: classifyRainIntensity(raw.hourly.precipitation?.[i] ?? 0),
+        isConfirmedHazard: false // Predictive forecast slice is never a confirmed hazard
       });
     }
   }
+
+  const nowIso = new Date().toISOString();
+  const retrievalTimestamp = raw.retrievalTimestamp || nowIso;
+  const dataFreshnessTimestamp = current.time || retrievalTimestamp;
+  const forecastHorizonHours = hourlyForecast.length;
+
+  // Evaluate initial freshness status
+  const ageMinutes = Math.max(0, Math.round((Date.now() - new Date(retrievalTimestamp).getTime()) / (60 * 1000)));
+  let freshnessStatus = "FRESH";
+  if (provenance === "UNAVAILABLE") {
+    freshnessStatus = "MISSING";
+  } else if (provenance === "DEGRADED_FALLBACK") {
+    freshnessStatus = "DEGRADED_STALE";
+  } else if (ageMinutes >= 240) {
+    freshnessStatus = "EXPIRED";
+  } else if (ageMinutes >= 60) {
+    freshnessStatus = "STALE";
+  }
+
+  const validUntil = new Date(new Date(retrievalTimestamp).getTime() + 60 * 60 * 1000).toISOString();
 
   return {
     provenance, // LIVE | FORECAST | SIMULATED | DEGRADED_FALLBACK | UNAVAILABLE
     degraded: provenance === "DEGRADED_FALLBACK" || provenance === "UNAVAILABLE",
     isSimulation: provenance === "SIMULATED",
-    dataFreshnessTimestamp: current.time || new Date().toISOString(),
+    retrievalTimestamp,
+    dataFreshnessTimestamp,
+    forecastHorizonHours,
+    freshnessStatus,
+    stale: freshnessStatus !== "FRESH",
+    validityWindow: {
+      validFrom: retrievalTimestamp,
+      validUntil,
+      maxAgeMinutes: 60
+    },
+    stalenessPolicy: "DEGRADE_CONFIDENCE_WIDEN_UNCERTAINTY",
     source: provenance === "SIMULATED" 
       ? "WAYFARER Digital Twin Atmospheric Model" 
       : provenance === "DEGRADED_FALLBACK"
       ? "Calibrated Offline Atmospheric Model"
       : "Open-Meteo Global Meteorological Engine",
-    timestamp: current.time || new Date().toISOString(),
+    timestamp: dataFreshnessTimestamp,
     temperature: Math.round(temperature * 10) / 10,
     feelsLike: Math.round(feelsLike * 10) / 10,
     humidity: Math.round(humidity),
@@ -123,6 +155,47 @@ export function normalizeWeatherData(raw = {}, provenance = "LIVE") {
     surfacePressureHpa: surfacePressure,
     airQualityIndex: Number(current.aqi ?? (humidity > 80 ? 42 : 78)), // ESTIMATED AQI
     hourlyForecast
+  };
+}
+
+/**
+ * Re-evaluates freshness state against a custom reference timestamp or current time
+ * @param {Object} weatherState 
+ * @param {number|string} [asOfTimestamp=Date.now()]
+ * @returns {Object} Freshness evaluation details
+ */
+export function evaluateWeatherFreshness(weatherState, asOfTimestamp = Date.now()) {
+  if (!weatherState || weatherState.provenance === "UNAVAILABLE") {
+    return {
+      freshnessStatus: "MISSING",
+      stale: true,
+      ageMinutes: null,
+      stalenessPolicy: "DEGRADE_CONFIDENCE_WIDEN_UNCERTAINTY",
+      valid: false
+    };
+  }
+
+  const refTime = new Date(weatherState.retrievalTimestamp || weatherState.dataFreshnessTimestamp || weatherState.timestamp).getTime();
+  const now = typeof asOfTimestamp === "number" ? asOfTimestamp : new Date(asOfTimestamp).getTime();
+  const ageMinutes = Math.max(0, Math.round((now - refTime) / (60 * 1000)));
+
+  let freshnessStatus = "FRESH";
+  if (weatherState.provenance === "DEGRADED_FALLBACK") {
+    freshnessStatus = "DEGRADED_STALE";
+  } else if (ageMinutes >= 240) {
+    freshnessStatus = "EXPIRED";
+  } else if (ageMinutes >= 60) {
+    freshnessStatus = "STALE";
+  }
+
+  const stale = freshnessStatus !== "FRESH";
+
+  return {
+    freshnessStatus,
+    stale,
+    ageMinutes,
+    stalenessPolicy: "DEGRADE_CONFIDENCE_WIDEN_UNCERTAINTY",
+    valid: freshnessStatus !== "EXPIRED" && freshnessStatus !== "MISSING"
   };
 }
 
@@ -197,6 +270,7 @@ export async function fetchLiveWeather({ lat = 18.9220, lng = 72.8347 } = {}, al
     }
 
     const rawData = await response.json();
+    rawData.retrievalTimestamp = new Date().toISOString();
     return normalizeWeatherData(rawData, "LIVE");
   } catch (err) {
     securityLogger.warn(`[WEATHER_PROVIDER] Live fetch failed for (${lat}, ${lng}): ${err.message}. Using calibrated fallback.`);

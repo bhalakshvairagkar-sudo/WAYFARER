@@ -522,3 +522,72 @@ export function calculateOverallJourneyScore(segments = []) {
     segmentScores
   };
 }
+
+/**
+ * Applies weather intelligence and environmental evidence to an individual candidate route score.
+ * 
+ * Strict Guarantees:
+ * 1. Missing or unassessed weather: Preserves baseline multi-factor score; DOES NOT INVENT A RISK PENALTY.
+ * 2. Stale weather: Widens uncertainty band, labels stale, limits maximum penalty.
+ * 3. Pure Forecast: Not treated as confirmed road closure/hazard; advisory only.
+ * 4. Confirmed Hazard: Reflects corroborated ground impact on exposed vs sheltered corridors.
+ * 
+ * @param {Object} routeCandidate Candidate route object
+ * @param {Object} segmentImpact Output from computeSegmentWeatherImpact()
+ * @param {Object} [travelerWeights=null]
+ * @returns {Object} Route candidate with attached weather evaluation and calibrated score
+ */
+export function applyWeatherEvidenceToRoute(routeCandidate, segmentImpact, travelerWeights = null) {
+  if (!routeCandidate) return null;
+
+  // Case 1: Missing or unassessed weather data - STRICT PRESERVATION
+  if (!segmentImpact || segmentImpact.weatherAvailable === false || segmentImpact.routeRisk?.riskScore == null) {
+    return {
+      ...routeCandidate,
+      weatherEvaluation: {
+        evaluated: false,
+        status: "DATA_UNAVAILABLE",
+        riskScore: null, // STRICTLY NULL
+        uncertaintyBand: null,
+        isConfirmedHazard: false,
+        provenance: "NO_WEATHER_DATA",
+        message: "No meteorological data available. Route scored using standard multi-factor baseline."
+      }
+    };
+  }
+
+  // Case 2: Weather evidence is available
+  const risk = segmentImpact.routeRisk.riskScore;
+  const isExposed = routeCandidate.elevationMeters == null || routeCandidate.elevationMeters < 5;
+  const isSheltered = (routeCandidate.accessibleFeatures || []).some(f => 
+    /sheltered|covered|indoor|elevated|underground/i.test(f)
+  );
+
+  // Vulnerability exposure coefficient (0.3 for sheltered/elevated up to 1.0 for open low-elevation)
+  const exposureCoeff = isSheltered ? 0.3 : isExposed ? 1.0 : 0.6;
+  const rawPenalty = Math.round((risk / 100) * 35 * exposureCoeff);
+
+  // If pure forecast (not confirmed hazard), scale down penalty to preserve advisory nature
+  const penalty = segmentImpact.isConfirmedHazard ? rawPenalty : Math.round(rawPenalty * 0.5);
+
+  const baseScore = routeCandidate.score ?? (routeCandidate.compositeScore ? routeCandidate.compositeScore * 100 : 80);
+  const weatherAdjustedScore = Math.max(10, Math.round(baseScore - penalty));
+
+  return {
+    ...routeCandidate,
+    weatherRiskScore: Math.round(risk * exposureCoeff),
+    weatherAdjustedScore,
+    weatherEvaluation: {
+      evaluated: true,
+      status: segmentImpact.isConfirmedHazard ? "CONFIRMED_HAZARD" : "ADVISORY",
+      riskScore: risk,
+      uncertaintyBand: segmentImpact.routeRisk.uncertaintyBand,
+      isConfirmedHazard: segmentImpact.isConfirmedHazard,
+      hazardClassification: segmentImpact.hazardClassification,
+      freshnessStatus: segmentImpact.freshnessStatus,
+      stale: segmentImpact.stale,
+      provenance: segmentImpact.evidenceProvenance,
+      estimatedDelayMinutes: segmentImpact.travelTimeImpact?.estimatedDelayMinutes || 0
+    }
+  };
+}
