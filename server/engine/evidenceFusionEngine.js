@@ -39,6 +39,37 @@ export const RESOURCE_COORDINATES = {
 };
 
 /**
+ * Expiry policies based on incident type.
+ * Physical events carry different natural lifetimes in urban infrastructure.
+ */
+export const INCIDENT_EXPIRY_POLICIES = {
+  "TEMPORARILY_CLOSED": { maxDurationMinutes: 240, label: "4 hours" },
+  "SAFETY_HAZARD": { maxDurationMinutes: 180, label: "3 hours" },
+  "ACCESSIBILITY_ISSUE": { maxDurationMinutes: 360, label: "6 hours" },
+  "TRANSPORT_DELAY": { maxDurationMinutes: 60, label: "1 hour" },
+  "CROWD_SURGE": { maxDurationMinutes: 90, label: "1.5 hours" },
+  "ALL_CLEAR": { maxDurationMinutes: 120, label: "2 hours" },
+  "DEFAULT": { maxDurationMinutes: 120, label: "2 hours" }
+};
+
+/**
+ * Computes expiration window for an incident given its type and observation timestamp
+ * @param {string} eventType 
+ * @param {string|number} firstReportedAt 
+ * @returns {Object} { maxDurationMinutes, expiresAt, isExpired }
+ */
+export function getIncidentExpiry(eventType = "DEFAULT", firstReportedAt = Date.now()) {
+  const policy = INCIDENT_EXPIRY_POLICIES[eventType] || INCIDENT_EXPIRY_POLICIES["DEFAULT"];
+  const startTime = new Date(firstReportedAt || Date.now()).getTime();
+  const expiresAt = new Date(startTime + policy.maxDurationMinutes * 60 * 1000).toISOString();
+  return {
+    maxDurationMinutes: policy.maxDurationMinutes,
+    expiresAt,
+    isExpired: Date.now() > new Date(expiresAt).getTime()
+  };
+}
+
+/**
  * In-memory store for active clusters and recent reports
  */
 class EvidenceFusionStore {
@@ -280,6 +311,10 @@ export function clusterDuplicates(report, activeClusters = []) {
   }
 
   if (matchedCluster) {
+    const existingReporter = matchedCluster.reports.some(r => r.reporterId && r.reporterId === report.reporterId);
+    if (existingReporter) {
+      report.isDuplicateSubmission = true;
+    }
     matchedCluster.reports.push(report);
     matchedCluster.lastReportedAt = new Date().toISOString();
     return { cluster: matchedCluster, isNewCluster: false };
@@ -287,6 +322,9 @@ export function clusterDuplicates(report, activeClusters = []) {
 
   // Create new cluster
   const resourceName = RESOURCE_COORDINATES[report.resourceId]?.name || report.resourceId || "Identified Waypoint";
+  const resCoords = RESOURCE_COORDINATES[report.resourceId] || report.reporterLocation || { lat: 18.9310, lng: 72.8350 };
+  const expiry = getIncidentExpiry(report.eventType, report.timestamp);
+
   const newCluster = {
     id: `cluster-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
     resourceId: report.resourceId || "S1",
@@ -294,8 +332,30 @@ export function clusterDuplicates(report, activeClusters = []) {
     eventType: report.eventType || "ACCESSIBILITY_ISSUE",
     title: `${(report.eventType || "Incident").replace(/_/g, " ")} near ${resourceName}`,
     status: "QUARANTINE", // starts in quarantine evaluation
+    verificationStatus: "PENDING", // PENDING | VERIFIED | DISPUTED | EXPIRED | RESOLVED
+    severity: report.severity ?? 0.7,
     firstReportedAt: new Date(report.timestamp || Date.now()).toISOString(),
     lastReportedAt: new Date(report.timestamp || Date.now()).toISOString(),
+    timeValidity: {
+      firstReportedAt: new Date(report.timestamp || Date.now()).toISOString(),
+      lastReportedAt: new Date(report.timestamp || Date.now()).toISOString(),
+      expiresAt: expiry.expiresAt,
+      maxDurationMinutes: expiry.maxDurationMinutes,
+      isExpired: false
+    },
+    geographicScope: {
+      center: resCoords,
+      radiusMeters: 350,
+      corridorId: report.resourceId || "S1",
+      affectedSegments: [report.resourceId || "S1"]
+    },
+    sourceProvenance: report.sourceProvenance || "COMMUNITY_REPORT",
+    flagCount: 0,
+    disputeDetails: {
+      disputed: false,
+      flaggedReasons: [],
+      reviewPolicy: "STANDARD"
+    },
     reports: [report],
     operatorNotes: null
   };
@@ -564,7 +624,18 @@ export function fuseEvidence(cluster, independence) {
  */
 export function determineIncidentLifecycleStatus(cluster, independence, fusion) {
   // If explicitly resolved
-  if (cluster.status === "RESOLVED") return "RESOLVED";
+  if (cluster.status === "RESOLVED" || cluster.verificationStatus === "RESOLVED") return "RESOLVED";
+
+  // Check if disputed
+  if (cluster.status === "DISPUTED" || cluster.verificationStatus === "DISPUTED" || (cluster.flagCount && cluster.flagCount >= 1 && cluster.disputeDetails?.disputed)) {
+    return "DISPUTED";
+  }
+
+  // Check if expired based on incident type policy
+  const expiry = getIncidentExpiry(cluster.eventType, cluster.firstReportedAt);
+  if (cluster.status === "EXPIRED" || cluster.verificationStatus === "EXPIRED" || (cluster.firstReportedAt && expiry.isExpired)) {
+    return "EXPIRED";
+  }
 
   // Check if stale: age > 90 minutes without recent confirmation
   const reports = cluster.reports || [];
@@ -723,12 +794,55 @@ export function processCommunityReport(reportInput) {
   // Lifecycle state evaluation
   const lifecycleStatus = determineIncidentLifecycleStatus(cluster, independence, fusion);
   cluster.status = lifecycleStatus;
+
+  // Verification status progression: PENDING -> VERIFIED / DISPUTED / EXPIRED / RESOLVED
+  let verificationStatus = "PENDING";
+  if (lifecycleStatus === "ACTIVE" || lifecycleStatus === "VERIFIED") {
+    verificationStatus = "VERIFIED";
+  } else if (lifecycleStatus === "DISPUTED") {
+    verificationStatus = "DISPUTED";
+  } else if (lifecycleStatus === "EXPIRED") {
+    verificationStatus = "EXPIRED";
+  } else if (lifecycleStatus === "RESOLVED") {
+    verificationStatus = "RESOLVED";
+  } else {
+    verificationStatus = "PENDING";
+  }
+
+  cluster.verificationStatus = verificationStatus;
   cluster.decision = fusion.scores.decision;
   cluster.scores.status = lifecycleStatus;
+  cluster.scores.verificationStatus = verificationStatus;
+
+  // Unverified reports do NOT automatically create authoritative road closures
+  // If verification status is still PENDING, decision is strictly bounded to WARN (advisory only)
+  if (verificationStatus === "PENDING" && cluster.decision === "ADAPT") {
+    cluster.decision = "WARN";
+    cluster.scores.decision = "WARN";
+  }
+
+  // Update time validity and geographic scope
+  const resCoords = RESOURCE_COORDINATES[cluster.resourceId] || report.reporterLocation || { lat: 18.9310, lng: 72.8350 };
+  const expiry = getIncidentExpiry(cluster.eventType, cluster.firstReportedAt);
+  cluster.timeValidity = {
+    firstReportedAt: cluster.firstReportedAt,
+    lastReportedAt: cluster.lastReportedAt,
+    expiresAt: expiry.expiresAt,
+    maxDurationMinutes: expiry.maxDurationMinutes,
+    isExpired: expiry.isExpired
+  };
+  cluster.geographicScope = {
+    center: resCoords,
+    radiusMeters: 350,
+    corridorId: cluster.resourceId,
+    affectedSegments: [cluster.resourceId]
+  };
+  cluster.sourceProvenance = report.sourceProvenance || "COMMUNITY_REPORT";
+  cluster.severity = report.severity ?? 0.7;
 
   evidenceStore.saveCluster(cluster);
 
-  securityLogger.info(`[COMMUNITY_PIPELINE] Incident ${cluster.id} evaluated: Status=${cluster.status} Decision=${cluster.decision} (ActionConfidence=${fusion.scores.actionConfidence}, AttackRisk=${fusion.scores.attackRisk})`);
+  securityLogger.info(`[COMMUNITY_PIPELINE] Incident ${cluster.id} evaluated: Status=${cluster.status} (Verification=${cluster.verificationStatus}) Decision=${cluster.decision} (ActionConfidence=${fusion.scores.actionConfidence}, AttackRisk=${fusion.scores.attackRisk})`);
 
   return {
     report,
@@ -739,9 +853,11 @@ export function processCommunityReport(reportInput) {
       stage3_independence: independence,
       stage4_fusion: fusion.evidenceDimensions,
       lifecycleStatus: cluster.status,
+      verificationStatus: cluster.verificationStatus,
       finalDecision: cluster.decision
     },
     status: cluster.status,
+    verificationStatus: cluster.verificationStatus,
     decision: cluster.decision
   };
 }
@@ -758,33 +874,142 @@ export function actionIncidentCluster(clusterId, actionType, operatorNotes = "",
   if (actionType === "CONFIRM_ADAPT") {
     cluster.officialAuthorityVerified = true;
     cluster.status = "ACTIVE";
+    cluster.verificationStatus = "VERIFIED";
     cluster.decision = "ADAPT";
     cluster.scores.actionConfidence = 1.0;
     cluster.scores.attackRisk = 0.05;
     cluster.scores.decision = "ADAPT";
     cluster.scores.status = "ACTIVE";
+    cluster.scores.verificationStatus = "VERIFIED";
     cluster.operatorNotes = operatorNotes || `Verified and confirmed by ${operatorUser}`;
   } else if (actionType === "REJECT_QUARANTINE") {
     cluster.status = "QUARANTINED";
+    cluster.verificationStatus = "DISPUTED";
     cluster.decision = "QUARANTINE";
     cluster.scores.actionConfidence = 0.10;
     cluster.scores.attackRisk = 0.90;
     cluster.scores.decision = "QUARANTINE";
     cluster.scores.status = "QUARANTINED";
+    cluster.scores.verificationStatus = "DISPUTED";
     cluster.operatorNotes = operatorNotes || `Quarantined and rejected by ${operatorUser}`;
   } else if (actionType === "DOWNGRADE_WARN") {
     cluster.status = "CORROBORATING";
+    cluster.verificationStatus = "PENDING";
     cluster.decision = "WARN";
     cluster.scores.decision = "WARN";
     cluster.scores.status = "CORROBORATING";
+    cluster.scores.verificationStatus = "PENDING";
     cluster.operatorNotes = operatorNotes || `Maintained as advisory warning by ${operatorUser}`;
   } else if (actionType === "RESOLVE") {
     cluster.status = "RESOLVED";
+    cluster.verificationStatus = "RESOLVED";
     cluster.decision = "WARN";
     cluster.scores.status = "RESOLVED";
+    cluster.scores.verificationStatus = "RESOLVED";
     cluster.operatorNotes = operatorNotes || `Issue cleared / resolved by ${operatorUser}`;
   }
 
   evidenceStore.saveCluster(cluster);
+  return cluster;
+}
+
+/**
+ * Allows community travelers to flag suspicious, obsolete, or inaccurate incident reports
+ * @param {string} clusterId 
+ * @param {Object} flagOptions { reason, flagType, reporterId }
+ * @returns {Object} Updated cluster
+ */
+export function flagIncidentCluster(clusterId, { reason = "Flagged by community traveler", flagType = "INACCURATE", reporterId = "anonymous" } = {}) {
+  const cluster = evidenceStore.getCluster(clusterId);
+  if (!cluster) {
+    throw new Error(`Incident cluster "${clusterId}" not found.`);
+  }
+
+  cluster.flagCount = (cluster.flagCount || 0) + 1;
+  cluster.disputeDetails = cluster.disputeDetails || { disputed: false, flaggedReasons: [], reviewPolicy: "STANDARD" };
+  cluster.disputeDetails.flaggedReasons.push({
+    reason,
+    flagType,
+    reporterId,
+    timestamp: new Date().toISOString()
+  });
+
+  // Flagging sets status to DISPUTED and enforces review policy
+  cluster.disputeDetails.disputed = true;
+  cluster.disputeDetails.reviewPolicy = "REQUIRES_MODERATOR_TRIAGE";
+  cluster.status = "DISPUTED";
+  cluster.verificationStatus = "DISPUTED";
+
+  // Downscale action confidence due to active dispute
+  if (cluster.scores) {
+    cluster.scores.actionConfidence = Math.max(0.1, Number((cluster.scores.actionConfidence * 0.4).toFixed(2)));
+    cluster.scores.decision = "WARN"; // Disputed reports cannot force route adaptation
+    cluster.scores.status = "DISPUTED";
+    cluster.scores.verificationStatus = "DISPUTED";
+  }
+  cluster.decision = "WARN";
+
+  evidenceStore.saveCluster(cluster);
+  securityLogger.info(`[COMMUNITY_DISPUTE] Incident ${clusterId} flagged as ${flagType}: "${reason}". Set to DISPUTED.`);
+  return cluster;
+}
+
+/**
+ * Allows verified moderators and transit controllers to review and arbitrate disputed incidents
+ * @param {string} clusterId 
+ * @param {Object} reviewOptions { decision, moderatorNotes, moderatorRole, moderatorUser }
+ * @returns {Object} Updated cluster
+ */
+export function reviewIncidentCluster(clusterId, { decision, moderatorNotes = "", moderatorRole = "MODERATOR", moderatorUser = "moderator" } = {}) {
+  const cluster = evidenceStore.getCluster(clusterId);
+  if (!cluster) {
+    throw new Error(`Incident cluster "${clusterId}" not found.`);
+  }
+
+  const validDecisions = ["APPROVE_VERIFIED", "REJECT_QUARANTINE", "MARK_RESOLVED"];
+  if (!validDecisions.includes(decision)) {
+    throw new Error(`Invalid review decision. Allowed: ${validDecisions.join(", ")}`);
+  }
+
+  if (decision === "APPROVE_VERIFIED") {
+    cluster.status = "VERIFIED";
+    cluster.verificationStatus = "VERIFIED";
+    cluster.decision = cluster.scores?.communityConfidence >= 0.70 ? "ADAPT" : "WARN";
+    if (cluster.scores) {
+      cluster.scores.status = "VERIFIED";
+      cluster.scores.verificationStatus = "VERIFIED";
+      cluster.scores.decision = cluster.decision;
+      cluster.scores.actionConfidence = Math.max(0.75, cluster.scores.actionConfidence);
+      cluster.scores.attackRisk = 0.05;
+    }
+    cluster.disputeDetails = { ...cluster.disputeDetails, disputed: false, reviewPolicy: "RESOLVED_VERIFIED" };
+    cluster.operatorNotes = `Reviewed and verified by ${moderatorRole} (${moderatorUser}): ${moderatorNotes}`;
+  } else if (decision === "REJECT_QUARANTINE") {
+    cluster.status = "QUARANTINED";
+    cluster.verificationStatus = "DISPUTED";
+    cluster.decision = "QUARANTINE";
+    if (cluster.scores) {
+      cluster.scores.status = "QUARANTINED";
+      cluster.scores.verificationStatus = "DISPUTED";
+      cluster.scores.decision = "QUARANTINE";
+      cluster.scores.actionConfidence = 0.05;
+      cluster.scores.attackRisk = 0.95;
+    }
+    cluster.disputeDetails = { ...cluster.disputeDetails, disputed: true, reviewPolicy: "REJECTED_QUARANTINED" };
+    cluster.operatorNotes = `Quarantined upon review by ${moderatorRole} (${moderatorUser}): ${moderatorNotes}`;
+  } else if (decision === "MARK_RESOLVED") {
+    cluster.status = "RESOLVED";
+    cluster.verificationStatus = "RESOLVED";
+    cluster.decision = "WARN";
+    if (cluster.scores) {
+      cluster.scores.status = "RESOLVED";
+      cluster.scores.verificationStatus = "RESOLVED";
+    }
+    cluster.disputeDetails = { ...cluster.disputeDetails, disputed: false, reviewPolicy: "RESOLVED_CLOSED" };
+    cluster.operatorNotes = `Marked resolved by ${moderatorRole} (${moderatorUser}): ${moderatorNotes}`;
+  }
+
+  evidenceStore.saveCluster(cluster);
+  securityLogger.info(`[MODERATOR_REVIEW] Incident ${clusterId} reviewed (${decision}) by ${moderatorUser}. Status: ${cluster.status}`);
   return cluster;
 }

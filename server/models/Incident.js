@@ -45,6 +45,8 @@ const IncidentSchema = new mongoose.Schema(
         'CORROBORATING',
         'VERIFIED',
         'ACTIVE',
+        'DISPUTED',
+        'EXPIRED',
         'STALE',
         'RESOLVED',
         'SUSPICIOUS',
@@ -52,6 +54,36 @@ const IncidentSchema = new mongoose.Schema(
       ],
       default: 'UNVERIFIED',
       index: true
+    },
+    verificationStatus: {
+      type: String,
+      enum: ['PENDING', 'VERIFIED', 'DISPUTED', 'EXPIRED', 'RESOLVED'],
+      default: 'PENDING',
+      index: true
+    },
+    severity: {
+      type: Number,
+      default: 0.7
+    },
+    timeValidity: {
+      type: Object,
+      default: {}
+    },
+    geographicScope: {
+      type: Object,
+      default: {}
+    },
+    sourceProvenance: {
+      type: String,
+      default: 'COMMUNITY_REPORT'
+    },
+    flagCount: {
+      type: Number,
+      default: 0
+    },
+    disputeDetails: {
+      type: Object,
+      default: {}
     },
     decision: {
       type: String,

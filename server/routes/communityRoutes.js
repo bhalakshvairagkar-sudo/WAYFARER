@@ -9,6 +9,9 @@ import {
   evidenceStore,
   processCommunityReport,
   actionIncidentCluster,
+  flagIncidentCluster,
+  reviewIncidentCluster,
+  INCIDENT_EXPIRY_POLICIES,
   detectAbuseAndSpam,
   clusterDuplicates,
   analyzeIndependence,
@@ -39,6 +42,8 @@ const CommunityReportSchema = z.object({
   ]).default("ACCESSIBILITY_ISSUE"),
   severity: z.number().min(0).max(1).optional().default(0.7),
   description: z.string().min(3, "Description must have at least 3 characters").max(500),
+  observationTime: z.string().optional(),
+  sourceProvenance: z.string().optional(),
   mediaEvidence: z.object({
     hasPhoto: z.boolean().default(false),
     photoUrl: z.string().url().optional()
@@ -102,7 +107,14 @@ router.post("/report", optionalAuth, async (req, res, next) => {
           eventType: result.cluster.eventType,
           title: result.cluster.title,
           status: result.cluster.status,
+          verificationStatus: result.cluster.verificationStatus,
+          severity: result.cluster.severity,
           decision: result.cluster.decision,
+          timeValidity: result.cluster.timeValidity,
+          geographicScope: result.cluster.geographicScope,
+          sourceProvenance: result.cluster.sourceProvenance,
+          flagCount: result.cluster.flagCount,
+          disputeDetails: result.cluster.disputeDetails,
           scores: result.cluster.scores,
           evidenceFusion: result.cluster.evidenceFusion,
           independenceAnalysis: result.cluster.independenceAnalysis,
@@ -400,6 +412,69 @@ router.post("/incidents/:id/challenge", optionalAuth, (req, res) => {
     message: "Challenge recorded. Incident contradiction penalty applied.",
     incident: cluster
   });
+});
+
+/**
+ * POST /api/community/incidents/:id/flag
+ * Allows community travelers to flag suspicious, obsolete, or inaccurate incident reports.
+ * Puts report into DISPUTED state and enforces moderator review policy.
+ */
+router.post("/incidents/:id/flag", optionalAuth, (req, res) => {
+  try {
+    const { reason = "Flagged by community traveler", flagType = "INACCURATE" } = req.body;
+    const user = req.user;
+    const reporterId = user ? user.userId : `traveler-${Date.now()}`;
+
+    const cluster = flagIncidentCluster(req.params.id, {
+      reason,
+      flagType,
+      reporterId
+    });
+
+    res.json({
+      success: true,
+      message: `Incident flagged as ${flagType} and marked DISPUTED pending review.`,
+      incident: cluster
+    });
+  } catch (err) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * POST /api/community/incidents/:id/review
+ * Moderator / Controller arbitration of disputed or suspicious incidents.
+ */
+router.post("/incidents/:id/review", optionalAuth, (req, res) => {
+  try {
+    const { decision, moderatorNotes = "" } = req.body;
+    const validDecisions = ["APPROVE_VERIFIED", "REJECT_QUARANTINE", "MARK_RESOLVED"];
+    
+    if (!validDecisions.includes(decision)) {
+      return res.status(400).json({
+        success: false,
+        error: `Invalid review decision. Allowed: ${validDecisions.join(", ")}`
+      });
+    }
+
+    const moderatorUser = req.user ? req.user.name : "System Moderator";
+    const moderatorRole = req.user?.role || "MODERATOR";
+
+    const cluster = reviewIncidentCluster(req.params.id, {
+      decision,
+      moderatorNotes,
+      moderatorRole,
+      moderatorUser
+    });
+
+    res.json({
+      success: true,
+      message: `Incident review completed: Decision "${decision}" applied.`,
+      incident: cluster
+    });
+  } catch (err) {
+    res.status(400).json({ success: false, error: err.message });
+  }
 });
 
 /**

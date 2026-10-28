@@ -327,21 +327,34 @@ export function buildIncidentDecision(cluster) {
   
   const resourceId = cluster.resourceId || "S1";
   const affectedSegments = resourceId.startsWith("S") ? [resourceId] : [resourceId];
+  const latestReport = reports[reports.length - 1] || {};
+  const severity = typeof cluster.severity === "number" ? cluster.severity : (latestReport.severity ?? 0.7);
 
   return {
     incidentId: cluster.id,
     eventType: cluster.eventType || "ACCESSIBILITY_ISSUE",
     title: cluster.title || `Incident on ${resourceId}`,
     status: cluster.status || "UNVERIFIED",
+    verificationStatus: cluster.verificationStatus || (["ACTIVE", "VERIFIED"].includes(cluster.status) ? "VERIFIED" : "PENDING"),
     decision: cluster.decision || scores.decision || "WARN",
     communityConfidence: scores.communityConfidence ?? 0.5,
     attackRisk: scores.attackRisk ?? 0.1,
     actionConfidence: scores.actionConfidence ?? 0.5,
     affectedResource: resourceId,
     affectedSegments,
-    severity: reports[reports.length - 1]?.severity || 0.7,
-    description: reports[reports.length - 1]?.description || cluster.title,
+    severity,
+    description: latestReport.description || cluster.title,
     timestamp: cluster.lastReportedAt || new Date().toISOString(),
+    timeValidity: cluster.timeValidity || {
+      firstReportedAt: cluster.firstReportedAt,
+      lastReportedAt: cluster.lastReportedAt,
+      isExpired: cluster.status === "EXPIRED"
+    },
+    geographicScope: cluster.geographicScope || {
+      corridorId: resourceId,
+      affectedSegments
+    },
+    sourceProvenance: cluster.sourceProvenance || "COMMUNITY_REPORT",
     explanationContext: {
       independentConfirmations: independence.independentConfirmationsCount || reports.length,
       recentReports: reports.length,
@@ -450,8 +463,12 @@ export function applyIncidentToJourney(journeyState, incidentOrDecision, travele
   // 1. Evaluate Personalized Impact
   const personalImpact = calculatePersonalImpact(incidentDecision, currentTraveler, journeyState);
 
-  // 2. If decision or personal impact is QUARANTINE or WARN (not ADAPT), do NOT adapt the route
-  if (personalImpact.recommendedAction === "QUARANTINE" || incidentDecision.decision === "QUARANTINE") {
+  // 1a. Quarantine check: High attack risk or spam strictly blocks route adaptation
+  if (
+    personalImpact.recommendedAction === "QUARANTINE" || 
+    incidentDecision.decision === "QUARANTINE" ||
+    incidentDecision.status === "QUARANTINED"
+  ) {
     return {
       adapted: false,
       reason: "QUARANTINED_ATTACK_OR_SPAM",
@@ -462,6 +479,65 @@ export function applyIncidentToJourney(journeyState, incidentOrDecision, travele
       affectedSegment: null,
       routeChanged: false,
       message: "Incident is quarantined due to high attack risk or spam. Journey route preserved without adaptation."
+    };
+  }
+
+  // 1b. Expired or Resolved Incidents: Stop influencing new route decisions
+  if (
+    incidentDecision.status === "EXPIRED" || 
+    incidentDecision.status === "RESOLVED" || 
+    incidentDecision.verificationStatus === "EXPIRED" ||
+    incidentDecision.verificationStatus === "RESOLVED" ||
+    incidentDecision.timeValidity?.isExpired === true
+  ) {
+    return {
+      adapted: false,
+      reason: "INCIDENT_EXPIRED_OR_RESOLVED",
+      advisory: false,
+      personalImpact,
+      incidentDecision,
+      updatedSegments: journeyState.segments,
+      affectedSegment: null,
+      routeChanged: false,
+      message: "Incident is expired or resolved. Active journey remains unmutated."
+    };
+  }
+
+  // 1c. Disputed Incidents: Under moderator review, cannot adapt route
+  if (
+    incidentDecision.status === "DISPUTED" || 
+    incidentDecision.verificationStatus === "DISPUTED"
+  ) {
+    const targetSegId = personalImpact.affectedSegments[0] || "S1";
+    return {
+      adapted: false,
+      reason: "DISPUTED_INCIDENT_UNDER_REVIEW",
+      advisory: true,
+      personalImpact,
+      incidentDecision,
+      updatedSegments: journeyState.segments,
+      affectedSegment: journeyState.segments.find(s => s.id === targetSegId),
+      routeChanged: false,
+      message: "Incident is disputed and undergoing moderator triage. Route preserved without adaptation."
+    };
+  }
+
+  // 1d. Unverified Reports: Do NOT automatically create authoritative road closures
+  if (
+    (incidentDecision.status === "UNVERIFIED" || (incidentDecision.verificationStatus === "PENDING" && incidentDecision.decision !== "ADAPT")) &&
+    !incidentDecision.officialAuthorityVerified
+  ) {
+    const targetSegId = personalImpact.affectedSegments[0] || "S1";
+    return {
+      adapted: false,
+      reason: "UNVERIFIED_REPORT_ADVISORY_ONLY",
+      advisory: true,
+      personalImpact,
+      incidentDecision,
+      updatedSegments: journeyState.segments,
+      affectedSegment: journeyState.segments.find(s => s.id === targetSegId),
+      routeChanged: false,
+      message: "Unverified community report: Advisory recorded. Route preserved until verified by independent corroboration."
     };
   }
 
@@ -500,19 +576,31 @@ export function applyIncidentToJourney(journeyState, incidentOrDecision, travele
   const targetSegId = personalImpact.affectedSegments[0] || "S1";
   let eventType = "ACCESSIBILITY_DEGRADATION";
   if (incidentDecision.eventType === "TRANSPORT_DELAY") eventType = "TRANSPORT_DELAY";
-  else if (incidentDecision.eventType === "TEMPORARILY_CLOSED") eventType = "ACTIVITY_CANCELLATION";
+  else if (incidentDecision.eventType === "TEMPORARILY_CLOSED") {
+    // If targeted at a route segment (e.g. S3), treat as segment passage closure
+    eventType = targetSegId.startsWith("S") ? "ACCESSIBILITY_DEGRADATION" : "ACTIVITY_CANCELLATION";
+  }
   else if (incidentDecision.eventType === "CROWD_SURGE") eventType = "CROWD_SPIKE";
 
   // Identify specific candidate route affected if incident references an elevator or specific feature
   let targetRouteId = incidentDecision.routeId || null;
-  if (!targetRouteId && (incidentDecision.eventType === "ACCESSIBILITY_ISSUE" || /elevator|lift/i.test(incidentDecision.description || ""))) {
+  if (!targetRouteId) {
     const seg = journeyState.segments.find(s => s.id === targetSegId);
-    const elevatorRoute = seg?.candidateRoutes.find(r => 
-      r.elevatorRequired || 
-      (r.accessibleFeatures || []).some(f => /elevator|lift/i.test(f))
-    );
-    if (elevatorRoute) {
-      targetRouteId = elevatorRoute.id;
+    if (incidentDecision.eventType === "ACCESSIBILITY_ISSUE" || /elevator|lift/i.test(incidentDecision.description || "")) {
+      const elevatorRoute = seg?.candidateRoutes.find(r => 
+        r.elevatorRequired || 
+        (r.accessibleFeatures || []).some(f => /elevator|lift/i.test(f))
+      );
+      if (elevatorRoute) {
+        targetRouteId = elevatorRoute.id;
+      }
+    }
+    // For route closures or unassigned targets, degrade the currently recommended route to prompt rerouting
+    if (!targetRouteId && seg?.candidateRoutes) {
+      const recRoute = seg.candidateRoutes.find(r => r.isRecommended) || seg.candidateRoutes[0];
+      if (recRoute) {
+        targetRouteId = recRoute.id;
+      }
     }
   }
 

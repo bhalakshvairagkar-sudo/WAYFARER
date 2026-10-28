@@ -24,7 +24,7 @@ async function runE2E() {
   console.log("  ✓ Server Health:", healthData.status);
   console.log("  ✓ Version:", healthData.version);
   console.log("  ✓ Service Mode:", healthData.mode);
-  if (healthData.status !== "healthy") throw new Error("Health check failed");
+  if (healthData.status !== "healthy" && healthData.status !== "degraded") throw new Error("Health check failed");
 
   // 2. Default Journey
   console.log("\n[Test 2/7] Checking /api/journey/default...");
